@@ -197,15 +197,15 @@ server <- function(input, output) {
         theme_minimal()
     } else {
       # Email length analysis by role
-      message %>%
+      role_length_data <- message %>%
         left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
         mutate(email_length = str_length(body)) %>%
         group_by(status) %>%
         summarize(avg_length = mean(email_length, na.rm = TRUE)) %>%
-        # Convert to list before plotting
-        as.list() %>%
-        as.data.frame() %>%
-        ggplot(aes(x = reorder(status, avg_length), y = avg_length)) +
+        ungroup()  # Ungroup the data
+      
+      # Create the plot with the ungrouped data
+      ggplot(role_length_data, aes(x = reorder(status, avg_length), y = avg_length)) +
         geom_col(fill = "#2c7fb8") +
         coord_flip() +
         labs(title = "Average Email Length by Role",
