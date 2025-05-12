@@ -47,28 +47,52 @@ Let's try to identify more precisely how the data set is composed in term of emp
 ```{R}
 table(employeelist$status)
 ```
-So it seems that we do have a proper re partition to make clear and precise analysis.
+So it seems that we do have a proper distribution to make clear and precise analysis.
+
+### Temporal analysis of the messages
+
+Lets first create an email_data table that will contain the count of emails monthly.
 
 ```{R}
-# Create monthly email counts with year correction
+# Create a data frame with monthly email counts
 email_data <- data.frame(
   Date = as.Date(paste0(format(message$date, "%Y-%m"), "-01")),
   Count = 1
-) %>%
-  # Correct years 0001 and 0002 to 2001 and 2002
+)
+
+# Group by Date and summarize the count to see how many email by month
+email_data <- email_data %>%
+  group_by(Date) %>%
+  summarize(Count = sum(Count))
+
+head(email_data)
+```
+We do notice that several of dates are not usable due to some mistakes. We identify that the first one is that 0001 and 0002 are induced instead of 2001 and 2002. We then see a 1979 instead of 1997. For the year 2020, it seems indeed to be an email from 2002. The messages from 2044 and 2043 don't have records by checking by message ID (mid). As we don't have the content we will not convert them we will simply remove them.
+
+```{R}
+# Correct errors in the year data in the dataframe
+email_data <- email_data %>%
+  # Correct years 0001 and 0002 to 2001 and 2002, 1979 to 1997 and 2020 to 2002
   mutate(Date = case_when(
     format(Date, "%Y") == "0001" ~ as.Date(paste0("2001", format(Date, "-%m-%d"))),
     format(Date, "%Y") == "0002" ~ as.Date(paste0("2002", format(Date, "-%m-%d"))),
+    format(Date, "%Y") == "1979" ~ as.Date(paste0("1997", format(Date, "-%m-%d"))),
+    format(Date, "%Y") == "2020" ~ as.Date(paste0("2002", format(Date, "-%m-%d"))),
     TRUE ~ Date
-  )) %>%
-  group_by(Date) %>%
-  summarize(Count = sum(Count))
+  ))
+
+# Filtering the data set in order to show only the relevant period (1999 and 2002 in our case)
+email_data <- email_data[email_data$Date >= as.Date("1999-01-01") & email_data$Date <= as.Date("2002-12-31"), ]
+
 
 # Display the data with corrected years
 head(email_data)
 # Display summary statistics
 summary(email_data)
+```
+Now that the data is clean lets visualize it with some plots.
 
+```{R}
 # Create the time series plot
 ggplot(email_data, aes(x = Date, y = Count)) +
   geom_line() +
@@ -80,6 +104,36 @@ ggplot(email_data, aes(x = Date, y = Count)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
+### Most active Email sender
 
+In this part we will focus again on the message data frame. we will try to identify who is the most active email sender of this data set.
 
+```{R}
+# This part count the number of emails a sender has
+top_senders <- message %>%
+  count(sender, sort = TRUE)
+
+# Join the status information with the email address (correspond to the profession of the employee)
+top_senders <- top_senders %>%
+  left_join(employeelist, by = c("sender" = "Email_id")) %>%
+  mutate(
+    label = ifelse(!is.na(status),
+                   paste0(sender, " (", status, ")"),
+                   sender)
+  )
+
+# Plot this information
+top_senders %>%
+  slice_max(n, n = 20) %>%
+  ggplot(aes(x = reorder(label, n), y = n)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Top 20 employees by number of emails sent",
+    x = "Sender and job title",
+    y = "Number of Emails"
+  ) +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 9))
+```
 
