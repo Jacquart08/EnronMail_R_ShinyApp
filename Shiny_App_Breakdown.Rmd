@@ -17,6 +17,8 @@ load(my_path)
 
 In case you are using the full data set provided on : https://www.cs.cmu.edu/~enron/ , you will then need to extract the .tar.gz with the untar(my_path, exdir="Your/desired/path) function.
 
+
+
 # First step in the Dataset
 
 Let's gather some information about the different dataframes we retrieved previously.
@@ -42,6 +44,28 @@ Let's try to identify more precisely how the data set is composed in term of emp
 table(employeelist$status)
 ```
 So it seems that we do have a proper re partition to make clear and precise analysis.
+
+
+
+```{R}
+# Extract year and month from the date column
+message$YearMonth <- format(message$date, "%Y-%m")
+
+# Count the number of emails by month
+email_by_month <- table(message$YearMonth)
+
+# Convert the names to dates and create a data frame
+email_data <- data.frame(
+  Date = as.Date(paste0(names(email_by_month), "-01"), format = "%Y-%m-%d"),
+  Count = as.numeric(email_by_month)
+)
+
+# Check the result
+head(email_data)
+```
+```{R}
+head(names(email_by_month))
+```
 
 
 
