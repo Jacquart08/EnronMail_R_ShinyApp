@@ -202,6 +202,9 @@ server <- function(input, output) {
         mutate(email_length = str_length(body)) %>%
         group_by(status) %>%
         summarize(avg_length = mean(email_length, na.rm = TRUE)) %>%
+        # Convert to list before plotting
+        as.list() %>%
+        as.data.frame() %>%
         ggplot(aes(x = reorder(status, avg_length), y = avg_length)) +
         geom_col(fill = "#2c7fb8") +
         coord_flip() +
