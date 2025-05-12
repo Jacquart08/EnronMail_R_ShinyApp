@@ -17,6 +17,11 @@ message <- message %>%
 employeelist <- employeelist %>%
   mutate(Email_clean = tolower(trimws(Email_id)))
 
+# Get unique roles for the filter
+unique_roles <- sort(unique(na.omit(employeelist$status)))
+print("Available roles:")
+print(unique_roles)
+
 # Prepare top senders data with proper status information
 top_senders <- message %>%
   count(sender_clean, sort = TRUE) %>%
@@ -64,8 +69,8 @@ ui <- fluidPage(
         sidebarPanel(
           sliderInput("n_senders", "Number of top senders to display:", 
                      min = 5, max = 50, value = 20),
-          selectInput("status_filter", "Filter by status:",
-                     choices = c("All", sort(unique(employeelist$status[!is.na(employeelist$status)]))),
+          selectInput("status_filter", "Filter by role:",
+                     choices = c("All", unique_roles),
                      selected = "All")
         ),
         mainPanel(
@@ -138,9 +143,11 @@ server <- function(input, output) {
     }
     
     # Get the top N senders after filtering
-    filtered_senders %>%
+    plot_data <- filtered_senders %>%
       slice_max(n, n = input$n_senders) %>%
-      ggplot(aes(x = reorder(label, n), y = n)) +
+      as.data.frame()  # Convert to regular data frame to avoid JSON warnings
+    
+    ggplot(plot_data, aes(x = reorder(label, n), y = n)) +
       geom_col(fill = "#2c7fb8") +
       coord_flip() +
       labs(
@@ -189,11 +196,14 @@ server <- function(input, output) {
   # Role Analysis Plot
   output$rolePlot <- renderPlot({
     if (input$role_metric == "Number of Emails") {
-      employeelist %>%
+      role_data <- employeelist %>%
         left_join(message %>% count(sender_clean), by = c("Email_clean" = "sender_clean")) %>%
         group_by(status) %>%
         summarize(avg_emails = mean(n, na.rm = TRUE)) %>%
-        ggplot(aes(x = reorder(status, avg_emails), y = avg_emails)) +
+        ungroup() %>%
+        as.data.frame()  # Convert to regular data frame
+      
+      ggplot(role_data, aes(x = reorder(status, avg_emails), y = avg_emails)) +
         geom_col(fill = "#2c7fb8") +
         coord_flip() +
         labs(title = "Average Number of Emails by Role",
@@ -210,7 +220,6 @@ server <- function(input, output) {
         ungroup() %>%
         as.data.frame()  # Convert to regular data frame
       
-      # Create the plot with the ungrouped data
       ggplot(role_length_data, aes(x = reorder(status, avg_length), y = avg_length)) +
         geom_col(fill = "#2c7fb8") +
         coord_flip() +
