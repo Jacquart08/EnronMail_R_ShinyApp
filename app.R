@@ -17,13 +17,15 @@ message <- message %>%
 employeelist <- employeelist %>%
   mutate(Email_clean = tolower(trimws(Email_id)))
 
-# Prepare top senders data
+# Prepare top senders data with proper status information
 top_senders <- message %>%
   count(sender_clean, sort = TRUE) %>%
-  left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
+  left_join(employeelist %>% 
+              select(Email_clean, status, firstName, lastName), 
+            by = c("sender_clean" = "Email_clean")) %>%
   mutate(
     label = ifelse(!is.na(status),
-                   paste0(sender_clean, " (", status, ")"),
+                   paste0(firstName, " ", lastName, " (", status, ")"),
                    sender_clean)
   )
 
@@ -63,7 +65,7 @@ ui <- fluidPage(
           sliderInput("n_senders", "Number of top senders to display:", 
                      min = 5, max = 50, value = 20),
           selectInput("status_filter", "Filter by status:",
-                     choices = c("All", unique(employeelist$status)),
+                     choices = c("All", sort(unique(employeelist$status[!is.na(employeelist$status)]))),
                      selected = "All")
         ),
         mainPanel(
@@ -128,11 +130,14 @@ server <- function(input, output) {
   # Most Active Employees Plot
   output$topSendersPlot <- renderPlot({
     filtered_senders <- top_senders
+    
+    # Apply status filter if not "All"
     if (input$status_filter != "All") {
       filtered_senders <- filtered_senders %>%
-        filter(status == input$status_filter)
+        filter(!is.na(status) & status == input$status_filter)
     }
     
+    # Get the top N senders after filtering
     filtered_senders %>%
       slice_max(n, n = input$n_senders) %>%
       ggplot(aes(x = reorder(label, n), y = n)) +
