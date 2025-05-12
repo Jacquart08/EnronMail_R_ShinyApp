@@ -13,6 +13,10 @@ The pre-processed data set has been provided in the file "Enron.Rdata". We will 
 #Loading of the database. Please replace my_path value with the path of your file. Use a local emplacement to store it, One Drive users may occur errors. Otherwise just access and clone the repo : !!!!
 my_path <- "C:/Users/CM_LAPTOP/Downloads/Enron.Rdata"
 load(my_path)
+
+# Load required packages
+library(dplyr)
+library(ggplot2)
 ```
 
 In case you are using the full data set provided on : https://www.cs.cmu.edu/~enron/ , you will then need to extract the .tar.gz with the untar(my_path, exdir="Your/desired/path) function.
@@ -45,27 +49,37 @@ table(employeelist$status)
 ```
 So it seems that we do have a proper re partition to make clear and precise analysis.
 
-
-
 ```{R}
-# Extract year and month from the date column
-message$YearMonth <- format(message$date, "%Y-%m")
-
-# Count the number of emails by month
-email_by_month <- table(message$YearMonth)
-
-# Convert the names to dates and create a data frame
+# Create monthly email counts with year correction
 email_data <- data.frame(
-  Date = as.Date(paste0(names(email_by_month), "-01"), format = "%Y-%m-%d"),
-  Count = as.numeric(email_by_month)
-)
+  Date = as.Date(paste0(format(message$date, "%Y-%m"), "-01")),
+  Count = 1
+) %>%
+  # Correct years 0001 and 0002 to 2001 and 2002
+  mutate(Date = case_when(
+    format(Date, "%Y") == "0001" ~ as.Date(paste0("2001", format(Date, "-%m-%d"))),
+    format(Date, "%Y") == "0002" ~ as.Date(paste0("2002", format(Date, "-%m-%d"))),
+    TRUE ~ Date
+  )) %>%
+  group_by(Date) %>%
+  summarize(Count = sum(Count))
 
-# Check the result
+# Display the data with corrected years
 head(email_data)
+# Display summary statistics
+summary(email_data)
+
+# Create the time series plot
+ggplot(email_data, aes(x = Date, y = Count)) +
+  geom_line() +
+  labs(title = "Monthly Email Counts (1999-2002)",
+       x = "Date",
+       y = "Number of Emails") +
+  theme_minimal() +
+  scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
-```{R}
-head(names(email_by_month))
-```
+
 
 
 
