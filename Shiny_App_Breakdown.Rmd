@@ -1,0 +1,47 @@
+---
+title: "Enron Email Database R ShinyApp"
+author: "Charles Manil"
+date: "2025-05-12"
+output: html_document
+---
+
+# Loading of the dataset
+
+The pre-processed data set has been provided in the file "Enron.Rdata". We will first load it in Rstudio in order to retrieve it and work on it.
+
+```{R}
+#Loading of the database. Please replace my_path value with the path of your file. Use a local emplacement to store it, One Drive users may occur errors. Otherwise just access and clone the repo : !!!!
+my_path <- "C:/Users/CM_LAPTOP/Downloads/Enron.Rdata"
+load(my_path)
+```
+
+In case you are using the full data set provided on : https://www.cs.cmu.edu/~enron/ , you will then need to extract the .tar.gz with the untar(my_path, exdir="Your/desired/path) function.
+
+# First step in the Dataset
+
+Let's gather some information about the different dataframes we retrieved previously.
+
+```{R}
+str(employeelist)
+str(message)
+str(recipientinfo)
+```
+We do now know that we are against a big data base, related to the emails sent in the company Enron before a major incident. We do have at our disposal an employee list with the different information about the staff, the messages that those users sent via the email vector of communication. The two other tables are information about emails. We do have in the recipientinfo some Ids and the email address of the recipient and in the referenceinfo the link between the recipient and the information contained in the email (the content and the date particularly).
+ 
+Some simple analysis can be quickly achieved, and with it we will have a better overview of the data.
+
+## Univariate analysis
+
+We will here establish some simple one to one relations that appear in the database, let's try to focus first on the employee list info.
+
+### Employeelist simple analysis
+
+Let's try to identify more precisely how the data set is composed in term of employees.
+
+```{R}
+table(employeelist$status)
+```
+So it seems that we do have a proper re partition to make clear and precise analysis.
+
+
+
