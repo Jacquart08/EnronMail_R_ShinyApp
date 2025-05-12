@@ -202,7 +202,8 @@ server <- function(input, output) {
         mutate(email_length = str_length(body)) %>%
         group_by(status) %>%
         summarize(avg_length = mean(email_length, na.rm = TRUE)) %>%
-        ungroup()  # Ungroup the data
+        ungroup() %>%
+        as.data.frame()  # Convert to regular data frame
       
       # Create the plot with the ungrouped data
       ggplot(role_length_data, aes(x = reorder(status, avg_length), y = avg_length)) +
@@ -220,7 +221,8 @@ server <- function(input, output) {
     # Get messages from selected sender
     sender_messages <- message %>%
       filter(sender_clean == input$sender_content) %>%
-      pull(body)
+      pull(body) %>%
+      as.character()  # Ensure character type
     
     # Create corpus and clean text
     corpus <- Corpus(VectorSource(sender_messages))
@@ -228,18 +230,29 @@ server <- function(input, output) {
     corpus <- tm_map(corpus, removePunctuation)
     corpus <- tm_map(corpus, removeWords, stopwords("english"))
     
+    # Convert corpus to term-document matrix
+    tdm <- TermDocumentMatrix(corpus)
+    m <- as.matrix(tdm)
+    v <- sort(rowSums(m), decreasing = TRUE)
+    d <- data.frame(word = names(v), freq = v)
+    
     # Create word cloud
-    wordcloud(corpus, max.words = input$max_words, 
+    wordcloud(words = d$word, 
+              freq = d$freq, 
+              max.words = input$max_words,
               colors = brewer.pal(8, "Dark2"),
               random.order = FALSE)
   })
   
   # Email Length Distribution
   output$emailLengthPlot <- renderPlot({
-    message %>%
+    length_data <- message %>%
       filter(sender_clean == input$sender_content) %>%
       mutate(email_length = str_length(body)) %>%
-      ggplot(aes(x = email_length)) +
+      select(email_length) %>%
+      as.data.frame()  # Convert to regular data frame
+    
+    ggplot(length_data, aes(x = email_length)) +
       geom_histogram(bins = 30, fill = "#2c7fb8") +
       labs(title = "Distribution of Email Lengths",
            x = "Email Length (characters)",
