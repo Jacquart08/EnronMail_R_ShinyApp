@@ -95,17 +95,17 @@ ui <- fluidPage(
   theme = shinytheme("flatly"),
   # Place enron_logo.png and dsti_logo.png in the www/ directory in order for the images to be displayed
   div(
-    style = "display: flex; align-items: center; justify-content: center; gap: 40px; margin-bottom: 20px;",
-    img(src = "enron_logo.png", height = "60px"),
+    style = "display: flex; align-items: center; justify-content: center; gap: 40px; margin-bottom: 20px; background: #f8f9fa; border-radius: 10px; box-shadow: 0 2px 8px #e0e0e0; padding: 10px;",
+    img(src = "enron_logo.png", height = "60px", alt = "Enron Logo", style = "border-radius: 8px;"),
     div(
-      style = "text-align: center;",
-      HTML("<h1 style='margin-bottom: 0;'>Enron Exploratory App</h1>
-            <h4 style='margin: 0;'>R for Big Data final exam</h4>
-            <h5 style='margin-top: 0;'>Charles Manil</h5>")
+      style = "text-align: center; flex: 1;",
+      HTML("<h1 style='margin-bottom: 0; color: #2c3e50;'>Enron Exploratory App</h1>
+            <h4 style='margin: 0; color: #2c3e50;'>R for Big Data final exam</h4>
+            <h5 style='margin-top: 0; color: #2c3e50;'>Charles Manil</h5>")
     ),
-    img(src = "dsti_logo.png", height = "60px")
+    img(src = "dsti_logo.png", height = "60px", alt = "DSTI Logo", style = "border-radius: 8px;")
   ),
-  
+  div(style = "height: 10px;"),
   tabsetPanel(
     # Tab 1: Temporal Analysis
     tabPanel(title = tagList(icon("chart-line"), "Temporal Analysis"),
@@ -127,10 +127,16 @@ ui <- fluidPage(
           )
         ),
         mainPanel(
+          fluidRow(
+            column(12, withSpinner(valueBoxOutput("totalEmails_ta")))
+          ),
           tabsetPanel(
             id = "temporal_tab",
-            tabPanel("Time Series", plotOutput("timeSeriesPlot"), verbatimTextOutput("eventInfo")),
-            tabPanel("Anomaly Detection", plotOutput("anomalyPlot"))
+            tabPanel("Time Series", 
+                     withSpinner(div(`aria-label` = "Time Series Plot", plotOutput("timeSeriesPlot"))),
+                     withSpinner(div(`aria-label` = "Event Information", verbatimTextOutput("eventInfo")))),
+            tabPanel("Anomaly Detection", 
+                     withSpinner(div(`aria-label` = "Anomaly Detection Plot", plotOutput("anomalyPlot"))))
           )
         )
       )
@@ -169,11 +175,17 @@ ui <- fluidPage(
           )
         ),
         mainPanel(
+          fluidRow(
+            column(12, withSpinner(valueBoxOutput("totalEmails_ra")))
+          ),
           tabsetPanel(
             id = "role_tab",
-            tabPanel("Most Active Employees", withSpinner(plotOutput("topSendersPlot"))),
-            tabPanel("Role Plot", plotOutput("rolePlot")),
-            tabPanel("Role-to-Role Heatmap", plotOutput("roleHeatmap"))
+            tabPanel("Most Active Employees", 
+                     withSpinner(div(`aria-label` = "Top Senders Plot", plotOutput("topSendersPlot")))),
+            tabPanel("Role Plot", 
+                     withSpinner(div(`aria-label` = "Role Plot", plotOutput("rolePlot")))),
+            tabPanel("Role-to-Role Heatmap", 
+                     withSpinner(div(`aria-label` = "Role-to-Role Heatmap", plotOutput("roleHeatmap"))))
           )
         )
       )
@@ -210,11 +222,17 @@ ui <- fluidPage(
           )
         ),
         mainPanel(
+          fluidRow(
+            column(12, withSpinner(valueBoxOutput("totalEmails_ca")))
+          ),
           tabsetPanel(
             id = "content_tab",
-            tabPanel("Word Cloud", plotOutput("wordCloudPlot")),
-            tabPanel("Email Length", plotOutput("emailLengthPlot")),
-            tabPanel("N-gram Analysis", plotOutput("ngramPlot"))
+            tabPanel("Word Cloud", 
+                     withSpinner(div(`aria-label` = "Word Cloud Plot", plotOutput("wordCloudPlot")))),
+            tabPanel("Email Length", 
+                     withSpinner(div(`aria-label` = "Email Length Plot", plotOutput("emailLengthPlot")))),
+            tabPanel("N-gram Analysis", 
+                     withSpinner(div(`aria-label` = "N-gram Plot", plotOutput("ngramPlot"))))
           )
         )
       )
@@ -228,15 +246,72 @@ ui <- fluidPage(
           helpText("This interactive network graph shows email connections between Enron employees. Use the slider to adjust the number of connections displayed.")
         ),
         mainPanel(
-          visNetworkOutput("networkPlot", height = "600px")
+          fluidRow(
+            column(12, withSpinner(valueBoxOutput("totalEmails_nv")))
+          ),
+          withSpinner(div(`aria-label` = "Network Plot", visNetworkOutput("networkPlot", height = "600px")))
        )
      )
+    ),
+    # Tab 5: In Depth Analysis
+    tabPanel(title = tagList(icon("chart-bar"), "In Depth Analysis"),
+      sidebarLayout(
+        sidebarPanel(
+          conditionalPanel(
+            condition = "input.analysis_tab == 'Summary Statistics'",
+            helpText("View summary statistics for email activity by role, sender, or over time.")
+          ),
+          conditionalPanel(
+            condition = "input.analysis_tab == 'Hypothesis Testing'",
+            selectInput("htest_var", "Variable:", choices = c("Email Length")),
+            selectInput("htest_group1", "Group 1 (Role):", choices = unique_roles),
+            selectInput("htest_group2", "Group 2 (Role):", choices = unique_roles, selected = unique_roles[2]),
+            helpText("Test if the selected variable differs between two roles (t-test).")
+          ),
+          conditionalPanel(
+            condition = "input.analysis_tab == 'Regression'",
+            selectInput("regress_y", "Dependent variable:", choices = c("Email Length", "Email Count")),
+            selectInput("regress_x", "Predictor:", choices = c("Role")),
+            helpText("Fit a simple regression model to explore relationships.")
+          ),
+          conditionalPanel(
+            condition = "input.analysis_tab == 'Clustering'",
+            sliderInput("cluster_k", "Number of clusters:", min = 2, max = 6, value = 3),
+            helpText("Cluster employees based on their email activity.")
+          ),
+          conditionalPanel(
+            condition = "input.analysis_tab == 'Correlation Matrix'",
+            helpText("View the correlation matrix for numeric features (e.g., email count, average length).")
+          ),
+          conditionalPanel(
+            condition = "input.analysis_tab == 'Outlier Detection'",
+            helpText("Detect and visualize outliers in email activity or content length.")
+          )
+        ),
+        mainPanel(
+          tabsetPanel(
+            id = "analysis_tab",
+            tabPanel("Summary Statistics", 
+                     withSpinner(div(`aria-label` = "Summary Statistics Table", tableOutput("summaryStats")))),
+            tabPanel("Hypothesis Testing", 
+                     withSpinner(div(`aria-label` = "Hypothesis Test Result", verbatimTextOutput("htestResult")))),
+            tabPanel("Regression", 
+                     withSpinner(div(`aria-label` = "Regression Result", verbatimTextOutput("regressResult")))),
+            tabPanel("Clustering", 
+                     withSpinner(div(`aria-label` = "Clustering Plot", plotOutput("clusterPlot")))),
+            tabPanel("Correlation Matrix", 
+                     withSpinner(div(`aria-label` = "Correlation Matrix Plot", plotOutput("corrPlot")))),
+            tabPanel("Outlier Detection", 
+                     withSpinner(div(`aria-label` = "Outlier Detection Plot", plotOutput("outlierPlot"))))
+          )
+        )
+      )
     ),
     valueBoxOutput("totalEmails")
   ),
   tags$footer(
-    style = "text-align:center; margin-top:30px; color: #888;",
-    "© 2024 Charles Manil | R for Big Data Final Exam | https://github.com/Jacquart08/EnronMail_R_ShinyApp"
+    style = "text-align:center; margin-top:30px; color: #888; background: #f8f9fa; padding: 10px; border-radius: 10px; font-size: 16px;",
+    HTML("<span tabindex='0' aria-label='Footer'>© 2024 Charles Manil | R for Big Data Final Exam | <a href='https://github.com/Jacquart08/EnronMail_R_ShinyApp' target='_blank' style='color: #2c7fb8;'>GitHub Repo</a></span>")
   )
 )
 
@@ -486,8 +561,132 @@ server <- function(input, output) {
       visLegend()
   })
 
-  output$totalEmails <- renderValueBox({
-    valueBox(value = nrow(message), subtitle = "Total Emails", icon = icon("envelope"))
+  output$totalEmails_ta <- renderValueBox({
+    valueBox(value = nrow(message), subtitle = "Total Emails", icon = icon("envelope"), color = "blue")
+  })
+
+  output$totalEmails_ra <- renderValueBox({
+    valueBox(value = nrow(message), subtitle = "Total Emails", icon = icon("envelope"), color = "blue")
+  })
+
+  output$totalEmails_ca <- renderValueBox({
+    valueBox(value = nrow(message), subtitle = "Total Emails", icon = icon("envelope"), color = "blue")
+  })
+
+  output$totalEmails_nv <- renderValueBox({
+    valueBox(value = nrow(message), subtitle = "Total Emails", icon = icon("envelope"), color = "blue")
+  })
+
+  # ---- Analysis: Summary Statistics ----
+  output$summaryStats <- renderTable({
+    # Example: summary of email length by role
+    message %>%
+      left_join(referenceinfo, by = "mid") %>%
+      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
+      mutate(email_length = str_length(reference)) %>%
+      group_by(status) %>%
+      summarize(
+        n_emails = n(),
+        avg_length = mean(email_length, na.rm = TRUE),
+        sd_length = sd(email_length, na.rm = TRUE)
+      )
+  })
+
+  # ---- Analysis: Hypothesis Testing ----
+  output$htestResult <- renderPrint({
+    # Example: t-test for email length between two roles
+    req(input$htest_group1, input$htest_group2)
+    dat <- message %>%
+      left_join(referenceinfo, by = "mid") %>%
+      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
+      mutate(email_length = str_length(reference)) %>%
+      filter(status %in% c(input$htest_group1, input$htest_group2))
+    group1 <- dat$email_length[dat$status == input$htest_group1]
+    group2 <- dat$email_length[dat$status == input$htest_group2]
+    if (length(group1) > 1 && length(group2) > 1) {
+      t.test(group1, group2)
+    } else {
+      "Not enough data for one or both groups."
+    }
+  })
+
+  # ---- Analysis: Regression ----
+  output$regressResult <- renderPrint({
+    # Example: regression of email length on role
+    dat <- message %>%
+      left_join(referenceinfo, by = "mid") %>%
+      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
+      mutate(email_length = str_length(reference))
+    if (input$regress_y == "Email Length") {
+      fit <- lm(email_length ~ status, data = dat)
+      summary(fit)
+    } else {
+      # Email count by role
+      count_dat <- dat %>% group_by(status) %>% summarize(email_count = n())
+      fit <- lm(email_count ~ status, data = count_dat)
+      summary(fit)
+    }
+  })
+
+  # ---- Analysis: Clustering ----
+  output$clusterPlot <- renderPlot({
+    # Example: K-means clustering of employees by email count and avg length
+    dat <- message %>%
+      left_join(referenceinfo, by = "mid") %>%
+      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
+      mutate(email_length = str_length(reference)) %>%
+      group_by(sender_clean, status) %>%
+      summarize(
+        n_emails = n(),
+        avg_length = mean(email_length, na.rm = TRUE),
+        .groups = "drop"
+      ) %>%
+      na.omit()
+    if (nrow(dat) < input$cluster_k) return(NULL)
+    km <- kmeans(dat[, c("n_emails", "avg_length")], centers = input$cluster_k)
+    dat$cluster <- as.factor(km$cluster)
+    ggplot(dat, aes(x = n_emails, y = avg_length, color = cluster, label = status)) +
+      geom_point(size = 3) +
+      labs(title = "K-means Clustering of Employees", x = "Number of Emails", y = "Average Email Length") +
+      theme_minimal()
+  })
+
+  # ---- Analysis: Correlation Matrix ----
+  output$corrPlot <- renderPlot({
+    dat <- message %>%
+      left_join(referenceinfo, by = "mid") %>%
+      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
+      mutate(email_length = str_length(reference)) %>%
+      group_by(sender_clean) %>%
+      summarize(
+        n_emails = n(),
+        avg_length = mean(email_length, na.rm = TRUE),
+        .groups = "drop"
+      )
+    corr_mat <- cor(dat[, c("n_emails", "avg_length")], use = "complete.obs")
+    corrplot::corrplot(corr_mat, method = "color", addCoef.col = "black", tl.col = "black", number.cex = 1.2)
+  })
+
+  # ---- Analysis: Outlier Detection ----
+  output$outlierPlot <- renderPlot({
+    dat <- message %>%
+      left_join(referenceinfo, by = "mid") %>%
+      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
+      mutate(email_length = str_length(reference)) %>%
+      group_by(sender_clean) %>%
+      summarize(
+        n_emails = n(),
+        avg_length = mean(email_length, na.rm = TRUE),
+        .groups = "drop"
+      )
+    # Outlier detection for email count
+    outlier_thresh <- mean(dat$n_emails) + 2 * sd(dat$n_emails)
+    dat$outlier <- dat$n_emails > outlier_thresh
+    ggplot(dat, aes(x = n_emails, y = avg_length, color = outlier)) +
+      geom_point(size = 3) +
+      scale_color_manual(values = c("black", "red")) +
+      labs(title = "Outlier Detection: Email Count vs. Avg Length", x = "Number of Emails", y = "Average Email Length") +
+      theme_minimal()
   })
 }
 
