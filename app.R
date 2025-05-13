@@ -18,9 +18,7 @@ employeelist <- employeelist %>%
   mutate(Email_clean = tolower(trimws(Email_id)))
 
 # Get unique roles for the filter
-unique_roles <- sort(unique(na.omit(employeelist$status)))
-print("Available roles:")
-print(unique_roles)
+unique_roles <- sort(unique(na.omit(as.character(employeelist$status))))
 
 # Prepare top senders data with proper status information
 top_senders <- message %>%
@@ -213,8 +211,9 @@ server <- function(input, output) {
     } else {
       # Email length analysis by role
       role_length_data <- message %>%
+        left_join(referenceinfo, by = "mid") %>%  # join to get the email content
         left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
-        mutate(email_length = str_length(body)) %>%
+        mutate(email_length = str_length(reference)) %>%  # use the correct column
         group_by(status) %>%
         summarize(avg_length = mean(email_length, na.rm = TRUE)) %>%
         ungroup() %>%
@@ -235,7 +234,8 @@ server <- function(input, output) {
     # Get messages from selected sender
     sender_messages <- message %>%
       filter(sender_clean == input$sender_content) %>%
-      pull(body) %>%
+      left_join(referenceinfo, by = "mid") %>%
+      pull(reference) %>%
       as.character()  # Ensure character type
     
     # Create corpus and clean text
@@ -262,7 +262,8 @@ server <- function(input, output) {
   output$emailLengthPlot <- renderPlot({
     length_data <- message %>%
       filter(sender_clean == input$sender_content) %>%
-      mutate(email_length = str_length(body)) %>%
+      left_join(referenceinfo, by = "mid") %>%
+      mutate(email_length = str_length(reference)) %>%
       select(email_length) %>%
       as.data.frame()  # Convert to regular data frame
     
