@@ -137,12 +137,23 @@ ui <- fluidPage(
           selectInput("sender_content", "Select sender:",
                      choices = unique(top_senders$sender_clean),
                      selected = top_senders$sender_clean[1]),
-          sliderInput("max_words", "Maximum number of words:",
-                     min = 10, max = 100, value = 50)
+          conditionalPanel(
+            condition = "input.content_tab == 'Word Cloud'",
+            sliderInput("max_words", "Maximum number of words:",
+                        min = 10, max = 100, value = 50)
+          ),
+          conditionalPanel(
+            condition = "input.content_tab == 'N-gram Analysis'",
+            numericInput("ngram_n", "N for N-gram:", value = 2, min = 2, max = 5, step = 1)
+          )
         ),
         mainPanel(
-          plotOutput("wordCloudPlot"),
-          plotOutput("emailLengthPlot")
+          tabsetPanel(
+            id = "content_tab",
+            tabPanel("Word Cloud", plotOutput("wordCloudPlot")),
+            tabPanel("Email Length", plotOutput("emailLengthPlot")),
+            tabPanel("N-gram Analysis", plotOutput("ngramPlot"))
+          )
         )
       )
     ),
@@ -305,6 +316,32 @@ server <- function(input, output) {
       labs(title = "Distribution of Email Lengths",
            x = "Email Length (characters)",
            y = "Count") +
+      theme_minimal()
+  })
+
+  # N-gram Analysis
+  output$ngramPlot <- renderPlot({
+    sender_messages <- message %>%
+      filter(sender_clean == input$sender_content) %>%
+      left_join(referenceinfo, by = "mid") %>%
+      pull(reference) %>%
+      as.character()
+    
+    text_df <- tibble(text = sender_messages)
+    ngram_n <- input$ngram_n
+    
+    ngrams <- text_df %>%
+      unnest_tokens(ngram, text, token = "ngrams", n = ngram_n) %>%
+      count(ngram, sort = TRUE) %>%
+      filter(!is.na(ngram)) %>%
+      slice_max(n, n = 20)
+    
+    ggplot(ngrams, aes(x = reorder(ngram, n), y = n)) +
+      geom_col(fill = "#2c7fb8") +
+      coord_flip() +
+      labs(title = paste("Top 20", paste0(ngram_n, "-grams"), "in Emails"),
+           x = paste0(ngram_n, "-gram"),
+           y = "Frequency") +
       theme_minimal()
   })
   
