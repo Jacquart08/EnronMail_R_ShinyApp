@@ -236,7 +236,7 @@ ui <- fluidPage(
   ),
   tags$footer(
     style = "text-align:center; margin-top:30px; color: #888;",
-    "© 2024 Charles Manil | R for Big Data Final Exam | https://github.com/Jacquart08/EuronMail_R_ShinyApp"
+    "© 2024 Charles Manil | R for Big Data Final Exam | https://github.com/Jacquart08/EnronMail_R_ShinyApp"
   )
 )
 
