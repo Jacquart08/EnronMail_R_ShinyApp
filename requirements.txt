@@ -1,0 +1,13 @@
+shiny
+shinythemes
+shinyBS
+shinycssloaders
+ggplot2
+dplyr
+stringr
+lubridate
+wordcloud
+tm
+visNetwork
+tidytext
+shinydashboard 

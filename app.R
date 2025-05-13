@@ -1,3 +1,4 @@
+# ---- Load Required Libraries ----
 library(shiny)
 library(ggplot2)
 library(dplyr)
@@ -7,20 +8,29 @@ library(wordcloud)
 library(tm)
 library(visNetwork)
 library(tidytext)
+library(shinythemes)
+library(shinyBS)
+library(shinycssloaders)
+library(shinydashboard)
 
-# Loading the data set
+# ---- Load the Enron Dataset ----
 my_path <- "C:/Users/CM_LAPTOP/Downloads/Enron.Rdata"
 load(my_path)
 
-# Clean and merge sender info
+# ---- Data Cleaning and Preparation ----
+
+# Clean and standardize sender email addresses in the message data
 message <- message %>%
   mutate(sender_clean = tolower(trimws(sender)))
 
+# Clean and standardize employee email addresses
 employeelist <- employeelist %>%
   mutate(Email_clean = tolower(trimws(Email_id)))
 
-# Get unique roles for the filter
+# Get unique employee roles for filtering in the UI
 unique_roles <- sort(unique(na.omit(as.character(employeelist$status))))
+
+# Most active employees cleaning and preparation 
 
 # Prepare top senders data with proper status information
 top_senders <- message %>%
@@ -58,48 +68,47 @@ email_data <- email_data %>%
   group_by(Date) %>%
   summarize(Count = sum(Count))
 
-# Prepare nodes
+# Role analysis 
+
+# ---- Prepare Nodes and Edges for Network Visualization ----
+
+# Nodes: Each employee as a node
 nodes <- employeelist %>%
   mutate(id = Email_clean, 
          label = paste(firstName, lastName),
          group = status) %>%
   select(id, label, group)
 
-# Prepare edges
+# Edges: Email connections between employees
 edges <- recipientinfo %>%
   mutate(rvalue_clean = tolower(trimws(rvalue))) %>%
   left_join(message %>% select(mid, sender), by = "mid") %>%
   left_join(employeelist %>% select(Email_id, Email_clean), by = c("sender" = "Email_id")) %>%
   mutate(from = Email_clean, to = rvalue_clean) %>%
   filter(!is.na(from) & !is.na(to)) %>%
-  # Filter to only employees
   filter(from %in% nodes$id & to %in% nodes$id) %>%
   group_by(from, to) %>%
   summarize(value = n(), .groups = "drop")
 
-# Define UI for application
+# ---- Define UI for Application ----
 ui <- fluidPage(
-  titlePanel("Enron Email Database Exploration"),
+  theme = shinytheme("flatly"),
+  # Place enron_logo.png and dsti_logo.png in the www/ directory in order for the images to be displayed
+  div(
+    style = "display: flex; align-items: center; justify-content: center; gap: 40px; margin-bottom: 20px;",
+    img(src = "enron_logo.png", height = "60px"),
+    div(
+      style = "text-align: center;",
+      HTML("<h1 style='margin-bottom: 0;'>Enron Exploratory App</h1>
+            <h4 style='margin: 0;'>R for Big Data final exam</h4>
+            <h5 style='margin-top: 0;'>Charles Manil</h5>")
+    ),
+    img(src = "dsti_logo.png", height = "60px")
+  ),
   
   tabsetPanel(
-    # Tab 1: Most Active Employees
-    tabPanel("Most Active Employees",
-      sidebarLayout(
-        sidebarPanel(
-          sliderInput("n_senders", "Number of top senders to display:", 
-                     min = 5, max = 50, value = 20),
-          selectInput("status_filter", "Filter by role:",
-                     choices = c("All", unique_roles),
-                     selected = "All")
-        ),
-        mainPanel(
-          plotOutput("topSendersPlot")
-        )
-      )
-    ),
-    
-    # Tab 2: Temporal Analysis
-    tabPanel("Temporal Analysis",
+    # Tab 1: Temporal Analysis
+    tabPanel(title = tagList(icon("chart-line"), "Temporal Analysis"),
       sidebarLayout(
         sidebarPanel(
           dateRangeInput("date_range", "Select date range:",
@@ -107,36 +116,76 @@ ui <- fluidPage(
                         end = "2002-12-31",
                         min = "1999-01-01",
                         max = "2002-12-31"),
-          checkboxInput("show_events", "Show key events", value = TRUE)
+          checkboxInput("show_events", "Show key events", value = TRUE),
+          conditionalPanel(
+            condition = "input.$temporal_tab == 'Time Series'",
+            helpText("The time series plot shows the monthly volume of emails. Use the date range to filter and optionally display key Enron events.")
+          ),
+          conditionalPanel(
+            condition = "input.$temporal_tab == 'Anomaly Detection'",
+            helpText("Anomaly detection highlights months with unusually high or low email activity (red dots). Adjust the date range to explore different periods.")
+          )
         ),
         mainPanel(
-          plotOutput("timeSeriesPlot"),
-          verbatimTextOutput("eventInfo")
+          tabsetPanel(
+            id = "temporal_tab",
+            tabPanel("Time Series", plotOutput("timeSeriesPlot"), verbatimTextOutput("eventInfo")),
+            tabPanel("Anomaly Detection", plotOutput("anomalyPlot"))
+          )
         )
       )
     ),
     
-    # Tab 3: Role Analysis
-    tabPanel("Role Analysis",
+    # Tab 2: Role Analysis
+    tabPanel(title = tagList(icon("users"), "Role Analysis"),
       sidebarLayout(
         sidebarPanel(
-          selectInput("role_metric", "Select metric:",
-                     choices = c("Number of Emails", "Average Email Length"),
-                     selected = "Number of Emails")
+          conditionalPanel(
+            condition = "input.role_tab == 'Role Plot'",
+            selectInput("role_metric", "Select metric:",
+                        choices = c("Number of Emails", "Average Email Length"),
+                        selected = "Number of Emails")
+          ),
+          conditionalPanel(
+            condition = "input.role_tab == 'Most Active Employees'",
+            sliderInput("n_senders", "Number of top senders to display:", 
+                        min = 5, max = 50, value = 20),
+            selectInput("status_filter", "Filter by role:",
+                        choices = c("All", unique_roles),
+                        selected = "All"),
+            bsTooltip("n_senders", "Number of top senders to display", "right")
+          ),
+          conditionalPanel(
+            condition = "input.role_tab == 'Most Active Employees'",
+            helpText("This bar chart shows the most active employees by number of emails sent. Use the filters to focus on a specific role.")
+          ),
+          conditionalPanel(
+            condition = "input.role_tab == 'Role Plot'",
+            helpText("This plot summarizes email activity or average email length by employee role. Select the metric to view different aspects.")
+          ),
+          conditionalPanel(
+            condition = "input.role_tab == 'Role-to-Role Heatmap'",
+            helpText("The heatmap visualizes the volume of emails exchanged between different roles within Enron.")
+          )
         ),
         mainPanel(
-          plotOutput("rolePlot")
+          tabsetPanel(
+            id = "role_tab",
+            tabPanel("Most Active Employees", withSpinner(plotOutput("topSendersPlot"))),
+            tabPanel("Role Plot", plotOutput("rolePlot")),
+            tabPanel("Role-to-Role Heatmap", plotOutput("roleHeatmap"))
+          )
         )
       )
     ),
     
-    # Tab 4: Content Analysis
-    tabPanel("Content Analysis",
+    # Tab 3: Content Analysis
+    tabPanel(title = tagList(icon("align-left"), "Content Analysis"),
       sidebarLayout(
         sidebarPanel(
           selectInput("sender_content", "Select sender:",
                      choices = unique(top_senders$sender_clean),
-                     selected = top_senders$sender_clean[1]),
+                     selected = unique(top_senders$sender_clean)[1]),
           conditionalPanel(
             condition = "input.content_tab == 'Word Cloud'",
             sliderInput("max_words", "Maximum number of words:",
@@ -144,7 +193,20 @@ ui <- fluidPage(
           ),
           conditionalPanel(
             condition = "input.content_tab == 'N-gram Analysis'",
-            numericInput("ngram_n", "N for N-gram:", value = 2, min = 2, max = 5, step = 1)
+            numericInput("ngram_n", "N for N-gram:", value = 2, min = 2, max = 10, step = 1),
+            sliderInput("ngram_top", "Top n-grams to display:", min = 5, max = 30, value = 20)
+          ),
+          conditionalPanel(
+            condition = "input.content_tab == 'Word Cloud'",
+            helpText("The word cloud visualizes the most frequent words in the selected sender's emails. You can adjust the number of words to display.")
+          ),
+          conditionalPanel(
+            condition = "input.content_tab == 'Email Length'",
+            helpText("This histogram shows the distribution of email lengths for the selected sender.")
+          ),
+          conditionalPanel(
+            condition = "input.content_tab == 'N-gram Analysis'",
+            helpText("This plot shows the most frequent n-grams (word sequences) in the selected sender's emails. Adjust N and the number of top n-grams to explore different patterns.")
           )
         ),
         mainPanel(
@@ -158,23 +220,29 @@ ui <- fluidPage(
       )
     ),
     
-    # Tab 5 : Connections network
-    tabPanel("Network Visualization",
+    # Tab 4 : Connections network
+    tabPanel(title = tagList(icon("project-diagram"), "Network Visualization"),
       sidebarLayout(
         sidebarPanel(
-          sliderInput("max_edges", "Max edges to display:", min = 10, max = 500, value = 200)
+          sliderInput("max_edges", "Max edges to display:", min = 10, max = 500, value = 200),
+          helpText("This interactive network graph shows email connections between Enron employees. Use the slider to adjust the number of connections displayed.")
         ),
         mainPanel(
           visNetworkOutput("networkPlot", height = "600px")
        )
      )
-    )
+    ),
+    valueBoxOutput("totalEmails")
+  ),
+  tags$footer(
+    style = "text-align:center; margin-top:30px; color: #888;",
+    "© 2024 Charles Manil | R for Big Data Final Exam | https://github.com/Jacquart08/EuronMail_R_ShinyApp"
   )
 )
 
 server <- function(input, output) {
   
-  # Most Active Employees Plot
+  # ---- Most Active Employees Plot ----
   output$topSendersPlot <- renderPlot({
     filtered_senders <- top_senders
     
@@ -201,7 +269,7 @@ server <- function(input, output) {
       theme(axis.text.y = element_text(size = 10))
   })
   
-  # Temporal Analysis Plot
+  # ---- Temporal Analysis Plot ----
   output$timeSeriesPlot <- renderPlot({
     filtered_data <- email_data %>%
       filter(Date >= input$date_range[1] & Date <= input$date_range[2])
@@ -235,7 +303,28 @@ server <- function(input, output) {
     }
   })
   
-  # Role Analysis Plot
+  # ---- Anomaly Detection Plot ----
+  output$anomalyPlot <- renderPlot({
+    filtered_data <- email_data %>%
+      filter(Date >= input$date_range[1] & Date <= input$date_range[2])
+    # Calculate z-score for anomaly detection
+    filtered_data <- filtered_data %>%
+      mutate(z = (Count - mean(Count)) / sd(Count))
+    threshold <- 2 # z-score threshold for anomaly
+    anomalies <- filtered_data %>% filter(abs(z) > threshold)
+    
+    ggplot(filtered_data, aes(x = Date, y = Count)) +
+      geom_line() +
+      geom_point(data = anomalies, aes(x = Date, y = Count), color = "red", size = 2) +
+      labs(title = "Anomaly Detection in Monthly Email Counts",
+           x = "Date",
+           y = "Number of Emails") +
+      theme_minimal() +
+      scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+  
+  # ---- Role Analysis Plot ----
   output$rolePlot <- renderPlot({
     if (input$role_metric == "Number of Emails") {
       role_data <- employeelist %>%
@@ -273,7 +362,43 @@ server <- function(input, output) {
     }
   })
   
-  # Content Analysis
+  # ---- Role-to-Role Heatmap ----
+  output$roleHeatmap <- renderPlot({
+    # Join sender and recipient roles
+    sender_roles <- employeelist %>% select(Email_clean, sender_status = status)
+    recipient_roles <- employeelist %>% select(Email_clean, recipient_status = status)
+    
+    # Prepare sender-recipient pairs from employee emails only
+    role_pairs <- recipientinfo %>%
+      mutate(rvalue_clean = tolower(trimws(rvalue))) %>%
+      left_join(message %>% select(mid, sender_clean), by = "mid") %>%
+      left_join(sender_roles, by = c("sender_clean" = "Email_clean")) %>%
+      left_join(recipient_roles, by = c("rvalue_clean" = "Email_clean")) %>%
+      filter(!is.na(sender_status) & !is.na(recipient_status))
+    
+    heatmap_data <- role_pairs %>%
+      count(sender_status, recipient_status) %>%
+      tidyr::pivot_wider(names_from = recipient_status, values_from = n, values_fill = 0)
+    
+    # Convert to matrix for heatmap
+    mat <- as.matrix(heatmap_data[,-1])
+    rownames(mat) <- heatmap_data$sender_status
+    
+    # Plot heatmap
+    heatmap_df <- as.data.frame(as.table(mat))
+    colnames(heatmap_df) <- c("Sender Role", "Recipient Role", "Count")
+    ggplot(heatmap_df, aes(x = `Recipient Role`, y = `Sender Role`, fill = Count)) +
+      geom_tile() +
+      scale_fill_gradient(low = "white", high = "#2c7fb8") +
+      labs(title = "Email Volume Between Roles",
+           x = "Recipient Role",
+           y = "Sender Role",
+           fill = "Email Count") +
+      theme_minimal() +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+  
+  # ---- Content Analysis: Word Cloud ----
   output$wordCloudPlot <- renderPlot({
     # Get messages from selected sender
     sender_messages <- message %>%
@@ -302,10 +427,10 @@ server <- function(input, output) {
               random.order = FALSE)
   })
   
-  # Email Length Distribution
+  # ---- Content Analysis: Email Length Distribution ----
   output$emailLengthPlot <- renderPlot({
     length_data <- message %>%
-      filter(sender_clean == input$sender_content) %>%
+      { if (input$sender_content != "ALL") filter(., sender_clean == input$sender_content) else . } %>%
       left_join(referenceinfo, by = "mid") %>%
       mutate(email_length = str_length(reference)) %>%
       select(email_length) %>%
@@ -319,33 +444,34 @@ server <- function(input, output) {
       theme_minimal()
   })
 
-  # N-gram Analysis
+  # ---- Content Analysis: N-gram Analysis ----
   output$ngramPlot <- renderPlot({
     sender_messages <- message %>%
-      filter(sender_clean == input$sender_content) %>%
+      { if (input$sender_content != "ALL") filter(., sender_clean == input$sender_content) else . } %>%
       left_join(referenceinfo, by = "mid") %>%
       pull(reference) %>%
       as.character()
     
     text_df <- tibble(text = sender_messages)
     ngram_n <- input$ngram_n
+    ngram_top <- input$ngram_top
     
     ngrams <- text_df %>%
       unnest_tokens(ngram, text, token = "ngrams", n = ngram_n) %>%
       count(ngram, sort = TRUE) %>%
       filter(!is.na(ngram)) %>%
-      slice_max(n, n = 20)
+      slice_max(n, n = ngram_top)
     
     ggplot(ngrams, aes(x = reorder(ngram, n), y = n)) +
       geom_col(fill = "#2c7fb8") +
       coord_flip() +
-      labs(title = paste("Top 20", paste0(ngram_n, "-grams"), "in Emails"),
+      labs(title = paste("Top", ngram_top, paste0(ngram_n, "-grams"), "in Emails"),
            x = paste0(ngram_n, "-gram"),
            y = "Frequency") +
       theme_minimal()
   })
   
-  #Networking the different connections
+  # ---- Network Visualization ----
   output$networkPlot <- renderVisNetwork({
     # Limit the number of edges for performance
     edges_sample <- edges %>% sample_n(min(nrow(edges), input$max_edges))
@@ -358,6 +484,10 @@ server <- function(input, output) {
       visGroups(groupname = "Manager", color = "blue") %>%
       visGroups(groupname = "Employee", color = "green") %>%
       visLegend()
+  })
+
+  output$totalEmails <- renderValueBox({
+    valueBox(value = nrow(message), subtitle = "Total Emails", icon = icon("envelope"))
   })
 }
 
