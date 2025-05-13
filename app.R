@@ -5,6 +5,8 @@ library(stringr)
 library(lubridate)
 library(wordcloud)
 library(tm)
+library(visNetwork)
+library(tidytext)
 
 # Loading the data set
 my_path <- "C:/Users/CM_LAPTOP/Downloads/Enron.Rdata"
@@ -55,6 +57,25 @@ email_data <- email_data[email_data$Date >= as.Date("1999-01-01") & email_data$D
 email_data <- email_data %>%
   group_by(Date) %>%
   summarize(Count = sum(Count))
+
+# Prepare nodes
+nodes <- employeelist %>%
+  mutate(id = Email_clean, 
+         label = paste(firstName, lastName),
+         group = status) %>%
+  select(id, label, group)
+
+# Prepare edges
+edges <- recipientinfo %>%
+  mutate(rvalue_clean = tolower(trimws(rvalue))) %>%
+  left_join(message %>% select(mid, sender), by = "mid") %>%
+  left_join(employeelist %>% select(Email_id, Email_clean), by = c("sender" = "Email_id")) %>%
+  mutate(from = Email_clean, to = rvalue_clean) %>%
+  filter(!is.na(from) & !is.na(to)) %>%
+  # Filter to only employees
+  filter(from %in% nodes$id & to %in% nodes$id) %>%
+  group_by(from, to) %>%
+  summarize(value = n(), .groups = "drop")
 
 # Define UI for application
 ui <- fluidPage(
@@ -124,6 +145,18 @@ ui <- fluidPage(
           plotOutput("emailLengthPlot")
         )
       )
+    ),
+    
+    # Tab 5 : Connections network
+    tabPanel("Network Visualization",
+      sidebarLayout(
+        sidebarPanel(
+          sliderInput("max_edges", "Max edges to display:", min = 10, max = 500, value = 200)
+        ),
+        mainPanel(
+          visNetworkOutput("networkPlot", height = "600px")
+       )
+     )
     )
   )
 )
@@ -273,6 +306,21 @@ server <- function(input, output) {
            x = "Email Length (characters)",
            y = "Count") +
       theme_minimal()
+  })
+  
+  #Networking the different connections
+  output$networkPlot <- renderVisNetwork({
+    # Limit the number of edges for performance
+    edges_sample <- edges %>% sample_n(min(nrow(edges), input$max_edges))
+    
+    visNetwork(nodes, edges_sample) %>%
+      visEdges(smooth = FALSE, width = "value") %>%
+      visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
+      visGroups(groupname = "CEO", color = "red") %>%
+      visGroups(groupname = "Director", color = "orange") %>%
+      visGroups(groupname = "Manager", color = "blue") %>%
+      visGroups(groupname = "Employee", color = "green") %>%
+      visLegend()
   })
 }
 
