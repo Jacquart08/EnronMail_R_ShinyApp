@@ -1,0 +1,209 @@
+---
+title: "Enron Email Database Statistical Analysis Report"
+author: "Charles Manil"
+date: "2025-05-12"
+output: 
+  bookdown::html_document2:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+    number_section: true
+---
+
+# Introduction
+
+In this study case we sill analyze a major scandal of fraud and financial manipulation that occured in 2001 the __Enron Scandal__. Enron was one of the major (if not the biggest) energy company from the late 90's. During their fall, they took with them one of the big 5 (now down to four): Andersen. The Enron affair gave rise to an unprecedented number of official investigations, legal actions and media reactions around the world. The disaster had serious consequences for more than 26,000 employees and some 45,000 investors.
+
+In order to analyze this case, we will focus on the email data set, which was obtained by the Federal Energy Regulatory Commission during its investigation of Enron's collapse. The original version contains around 500,000 records, but the data set provided in this analysis is a pre-processed one containing 252759 usable entries.
+
+We will do this analysis in a R Shiny application, that will allow us to retrieve quick graphs and statistic in order for us to interpret data. Even if the data set is pre-processed, we will still need to handle some kinds of errors in order for the analysis to be consistent. The analysis will be structured as it follow :   
+1. We will first make a temporal analysis to see the behaviors of the email exchanges through the scandal.  
+2. We will then try to see if the status of an employee in the company affect the exchange he will make  through this vector of communication.  
+3. We will try to analyze the content of the exchange, are they longer regarding different hypothesis, is the content different regarding those too ?  
+4. We will establish a network of relations between the employee to see if a pattern emerges.  
+5. We will finish with some statistics on the data set and try to establish a regression model to see if we could predict some features of the data set.  
+
+## Loading of the dataset
+
+The pre-processed data set has been provided in the file "Enron.Rdata". We will first load it in Rstudio in order to retrieve it and work on it.
+
+```{R datacleaning-DataAndLibraryLoading}
+#Loading of the database. Please replace my_path value with the path of your file. Use a local emplacement to store it, One Drive users may occur errors. Otherwise just access and clone the repo : https://github.com/Jacquart08/EnronMail_R_ShinyApp
+
+my_path <- "C:/Users/CM_LAPTOP/Downloads/Enron.Rdata"
+load(my_path)
+
+# Load required packages
+library(dplyr)
+library(ggplot2)
+```
+
+In case you are using the full data set provided on : https://www.cs.cmu.edu/~enron/ , you will then need to extract the .tar.gz with the untar(my_path, exdir="Your/desired/path) function. See [R documentation](https://www.rdocumentation.org/packages/utils/versions/3.6.2/topics/untar) for more informations.
+
+# First step in the Dataset
+
+Let's gather some information about the different data frames we loaded previously. We are writing very simple code in order to retrieve all the columns of the data frames and their data types. 
+
+```{R}
+str(employeelist)
+str(message)
+str(recipientinfo)
+str(referenceinfo)
+```
+We do now know that we are against a big data base, related to the emails sent in the company Enron before a major incident. We do have at our disposal an employee list with the different information about the staff, the messages that those users sent via the email vector of communication. The two other tables are information about emails. We do have in the recipientinfo some Ids and the email address of the recipient and in the referenceinfo the link between the recipient and the information contained in the email (the content and the date particularly).
+
+Let's write the data dictionary about this data set:  
+
+| __Data Frame name__ | __Column name__ | __Data type__  |  __Key type__ |  __Description__ |
+|---|---|---|---|---|
+| __employeelist__  | eid  | *num*  | PK  |  Primary key and employee id |
+|   | firstName  |  *chr* |   |   |
+|   |  lastName |  *chr* |   |   |
+|   | Email_id  | *chr*  |   |   |
+|   | Email2  | *chr*  |   | In case an employee has several mails  |
+|   | ... (till4)  | *chr*  |   |   |
+|   |  folder | *chr*  |   |   |
+|   | status  | *Factor*  |   |  Categorical value referencing the job ob an employee |
+| __message__  |  mid | *int*  |  PK |  Primary key of the message data frame |
+|   | sender  | *Factor*  |   | Categorical value based on an email address  |
+|   |  date | *Date*  |   |   |
+|   | message_id  |  *Factor* |   | categorical value of the messages id in the archive of Enron  |
+|   | subject  | *chr*  |   | The subject of the Email  |
+| __recipientinfo__  | rid  | *int*  | PK  |  Primary key of the recipientinfo |
+|   | mid  | *num*  | FK  |  Foreign key to the message data frame |
+|   | rtype  |  *Factor* |   |  Is the recipient in the TO, CC, CCi, ... |
+|   | rvalue  | *Factor*  |   | Email address of the recipient  |
+| __referenceinfo__  |  rfid | *int*  | PK  | Primary key of the referenceinfo data frame  |
+|   | mid  |  *int* | FK  | Foreign key to the message dataframe  |
+|   |  reference |  *chr* |   | The actual content of the Emails  |
+
+With the following we will establish a functional dependency matrix regarding the Lapage process :
+
+| Determines → <br> Is determined by ↓ | eid | firstName | lastName | Email\_id | Email2 | folder | mid | sender | date | message\_id | subject | rid | rtype | rvalue | rfid | reference | status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **eid**                              | ✔️  | ✔️        | ✔️       | ✔️        | ✔️     | ✔️     |     |        |      |             |         |     |       |        |      |           | ✔️     |
+| **mid**                              |     |           |          |           |        |        | ✔️  | ✔️     | ✔️   | ✔️          | ✔️      | ✔️  | ✔️    | ✔️     | ✔️   | ✔️        |        |
+| **rid**                              |     |           |          |           |        |        |     |        |      |             |         | ✔️  | ✔️    | ✔️     |      |           |        |
+| **rfid**                             |     |           |          |           |        |        |     |        |      |             |         |     |       |        | ✔️   | ✔️        |        |
+
+
+
+
+Some simple analysis can be quickly achieved, and with it we will have a better overview of the data.
+
+We do have written all the relations existing between our data. This processes will simplify later the analysis and the behavior of the features in the data frames. This can be particularly useful if we are planning further implementation of ML algorithm.
+
+Later we are going to visualize some simple one to one relations that appear in the database, let's try to focus first on the employee list info.
+
+## Employeelist univariate analysis
+
+Let's try to identify more precisely how the data set is composed in term of employees.
+
+```{R}
+table(employeelist$status)
+```
+So it seems that we do have a proper distribution to make clear and precise analysis. The N/A values are not usable as we can't have those information online. We will keep them as they can be useful in a future network analysis so we will not get rid of them during the data cleaning.
+
+## Preparatory data cleaning
+
+Lets first create an email_data table that will contain the count of emails monthly.
+
+```{R datacleaning-EmailCountByMonth}
+# Create a data frame with monthly email counts
+email_data <- data.frame(
+  Date = as.Date(paste0(format(message$date, "%Y-%m"), "-01")),
+  Count = 1
+)
+
+# Group by Date and summarize the count to see how many email by month
+email_data <- email_data %>%
+  group_by(Date) %>%
+  summarize(Count = sum(Count))
+
+head(email_data)
+```
+We do notice that several of dates are not usable due to some mistakes. We identify that the first one is that 0001 and 0002 are induced instead of 2001 and 2002. We then see a 1979 instead of 1997. For the year 2020, it seems indeed to be an email from 2002. The messages from 2044 and 2043 don't have records by checking by message ID (mid). As we don't have the content we will not convert them we will simply remove them.
+
+```{R datacleaning-EmailDates}
+# Correct errors in the year data in the dataframe
+email_data <- email_data %>%
+  # Correct years 0001 and 0002 to 2001 and 2002, 1979 to 1997 and 2020 to 2002
+  mutate(Date = case_when(
+    format(Date, "%Y") == "0001" ~ as.Date(paste0("2001", format(Date, "-%m-%d"))),
+    format(Date, "%Y") == "0002" ~ as.Date(paste0("2002", format(Date, "-%m-%d"))),
+    format(Date, "%Y") == "1979" ~ as.Date(paste0("1997", format(Date, "-%m-%d"))),
+    format(Date, "%Y") == "2020" ~ as.Date(paste0("2002", format(Date, "-%m-%d"))),
+    TRUE ~ Date
+  ))
+
+# Filtering the data set in order to show only the relevant period (1999 and 2002 in our case)
+email_data <- email_data[email_data$Date >= as.Date("1999-01-01") & email_data$Date <= as.Date("2002-12-31"), ]
+
+
+# Display the data with corrected years
+head(email_data)
+# Display summary statistics
+summary(email_data)
+```
+Now that the data is clean lets visualize it with some plots.
+
+## Temporal analysis of the messages
+
+```{R fig-MonthlyEmailCount, fig.cap="Monthly Email Count"}
+# Create the time series plot
+ggplot(email_data, aes(x = Date, y = Count)) +
+  geom_line() +
+  labs(title = "Monthly Email Counts (1999-2002)",
+       x = "Date",
+       y = "Number of Emails") +
+  theme_minimal() +
+  scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+```
+We do notice that in Figure \@ref(fig:fig-MonthlyEmailCount) the the number of email exchanges followed an exponential growth trend until October 2001, before rapidly collapsing until April 2002. If we are relating those data to the actual context of the company. The  In fact in August 2001, the CEO if the company declares that "The company is probably the strongest and best shape that it has ever been in" although it wasn't true and the Enron Broadband Services was reporting losses. The artificial value of the company was due to a falsified financial package.
+
+Enron's share price, after rising sharply until 2000, fell sharply in 2000-2001. While these loans served as collateral for numerous financial arrangements between the company and its banks, the latter demanded repayment of these camouflaged loans, which resurfaced on the company's balance sheet.
+
+In October 2001, Enron CEO is asking for the Secretary of Commerce to use his influence on the quotation agency Moody's and later this month Security and Exchange's Commission raise a case. Quickly in december 2001 the company declare its bankruptcy.
+
+## Most active Email sender
+
+In this part we will focus again on the message data frame. we will try to identify who is the most active email sender of this data set.
+
+```{R fig-MostActiveEmployee, fig.cap="The 20 employees who sent the most emails and their status"}
+# This part count the number of emails a sender has
+top_senders <- message %>%
+  count(sender, sort = TRUE)
+
+# Join the status information with the email address (correspond to the profession of the employee)
+top_senders <- top_senders %>%
+  left_join(employeelist, by = c("sender" = "Email_id")) %>%
+  mutate(
+    label = ifelse(!is.na(status),
+                   paste0(sender, " (", status, ")"),
+                   sender)
+  )
+
+# Plot this information
+top_senders %>%
+  slice_max(n, n = 20) %>%
+  ggplot(aes(x = reorder(label, n), y = n)) +
+  geom_col(fill = "steelblue") +
+  coord_flip() +
+  labs(
+    title = "Top 20 employees by number of emails sent",
+    x = "Sender and job title",
+    y = "Number of Emails"
+  ) +
+  theme_minimal() +
+  theme(axis.text.y = element_text(size = 9))
+```
+
+As we notice in Figure \@ref(fig:fig-MostActiveEmployee), and by reading the news the employee who sent the most emails was J. Dasovich. And in general we can notice that employees sent more emails than other positions in the company.However, if you pay more attention to the average number of emails, then managers are taking the lead. As the Enron company was well known for it's unique management methodology, influenced by the Ivy league university mentality, the results aren't that surprising. we can also notice it in the average length of the email sent. This feeling is comforted by the role-to-role heat map of the communication inside Euron.
+
+# In depth analysis
+
+## Multivariate analysis regarding the roles
+
+Rega
+ 
