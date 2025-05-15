@@ -43,6 +43,8 @@ library(wordcloud) #for the word cloud
 library(tm) #for the text mining
 library(visNetwork) #for the network visualization
 library(tidytext) #for the text mining
+library(tibble)
+library(knitr)
 ```
 
   In case you are using the full data set provided on : https://www.cs.cmu.edu/~enron/ , you will then need to extract the .tar.gz with the untar(my_path, exdir="Your/desired/path) function. See [R documentation](https://www.rdocumentation.org/packages/utils/versions/3.6.2/topics/untar) for more informations.
@@ -263,6 +265,8 @@ ggplot(heatmap_df, aes(x = `Recipient Role`, y = `Sender Role`, fill = Count)) +
 
 # In depth analysis
 
+  In this section we will go deeper into the data set. We will analyse the content of the email as well as the networking appearing in the exchanges. We will then relate it the some statistical analysis in order later to try to introduce some simple regression models.
+
 ## Message content analysis
 
   Due to the actual construction of the dataframe referenceinfo, where the content of the emails is stored, we do have inside lot of useless informations. In fact it record all the email with the informations about the sender, the recipent, the subject, ... but all of those informations are already stored into the recipientinfo dataframe. I tried in the app to perform a regex to remove the headers. Due to the number of emails and the ressources I have at my disposal I can't afford to make it run. The function was `referenceinfo <- referenceinfo %>%
@@ -274,4 +278,83 @@ ggplot(heatmap_df, aes(x = `Recipient Role`, y = `Sender Role`, fill = Count)) +
   
   The N-gram plot is still relevant. In fact, if we put aside the hearders redundancy in all the different employees, we still notice that some contacts are coming in the n-2, meaning that a network graph will be a good idea. 
   
- 
+  In Figure \@ref(fig:fig-Top5gram) we do see that we have a huge redundandcy od privacy related patterns. Indeed the words "intendent recipient" associated sometimes with negations implicate that such expressions are not only frequent but also formulaic. They follow a legal or corporate template aiming to disclaim responsibility or assert confidentiality.
+
+```{R fig-Top5gram, fig.cap="Top 15 5-gram redundancy for all users"}
+# Join to get messages with reference text
+sender_messages <- message %>%
+  left_join(referenceinfo, by = "mid") %>%
+  pull(reference) %>%
+  as.character()
+
+# Put everything into a tibble
+text_df <- tibble(text = sender_messages)
+
+# Define fallback values in case shiny inputs are not present
+if (!exists("ngram_n")) ngram_n <- 4
+if (!exists("ngram_top")) ngram_top <- 15
+
+# Generate top N n-grams
+ngrams <- text_df %>%
+  unnest_tokens(ngram, text, token = "ngrams", n = ngram_n) %>%
+  count(ngram, sort = TRUE) %>%
+  filter(!is.na(ngram)) %>%
+  slice_max(n, n = ngram_top)
+
+# Plot the result
+ggplot(ngrams, aes(x = reorder(ngram, n), y = n)) +
+  geom_col(fill = "#2c7fb8") +
+  coord_flip() +
+  labs(
+    title = paste("Top", ngram_top, paste0(ngram_n, "-grams"), "in Emails"),
+    x = paste(ngram_n, "-gram"),
+    y = "Frequency"
+  ) +
+  theme_minimal()
+```
+
+## Network visualization of the exchanges
+
+  As seen in the N-gram plot (more relevant in the app as we can explore the data set with customs inputs), some employees have in their 2-gram, some full names are appearing. This induce some stronger connections between some employees. In Figure \@ref(fig:fig-NetworkVisualization) we do see that no real pattern shows up 
+
+```{R fig-NetworkVisualization, fig.cap="Network visualization of the exhanges"}
+# Nodes: Each employee as a node
+nodes <- employeelist %>%
+  mutate(id = emp_email, # id is the email address so we can use it to connect the nodes
+         label = paste(firstName, lastName), # label is the full name of the employee
+         group = status) %>% # group is the status of the employee
+  select(id, label, group)
+
+# Edges: Email connections between employees
+edges <- recipientinfo %>%
+  mutate(rvalue_clean = tolower(trimws(rvalue))) %>%
+  left_join(message %>% select(mid, sender_email), by = "mid") %>% # left join the message data with the recipientinfo data because not in the same DF
+  left_join(employeelist %>% select(emp_email, Email_id), by = c("sender_email" = "emp_email")) %>% # same as above
+  mutate(from = sender_email, to = rvalue_clean) %>% # from is the sender and to is the recipient
+  filter(!is.na(from) & !is.na(to)) %>% # filter out the NAs as we have some
+  filter(from %in% nodes$id & to %in% nodes$id) %>% 
+  group_by(from, to) %>%
+  summarize(value = n(), .groups = "drop")
+
+# Simple count of emails
+total_emails <- nrow(message)
+
+cat(paste0("### Total Emails: ", total_emails))
+
+# Parameter of the network (number of connections)
+# As you can see on the app, it is not readable above 150
+max_edges <- 150
+
+# Sample the edges in order to reduce the overhelming of too much lines
+edges_sample <- edges %>% sample_n(min(nrow(edges), max_edges))
+
+# Plot visualization with colors to identify the status and the legend
+visNetwork(nodes, edges_sample) %>%
+  visEdges(smooth = FALSE, width = "value") %>%
+  visOptions(highlightNearest = TRUE, nodesIdSelection = TRUE) %>%
+  visGroups(groupname = "CEO", color = "red") %>%
+  visGroups(groupname = "Director", color = "orange") %>%
+  visGroups(groupname = "Manager", color = "blue") %>%
+  visGroups(groupname = "Employee", color = "green") %>%
+  visLegend()
+```
