@@ -1,47 +1,52 @@
 # ---- Load Required Libraries ----
-library(shiny)
-library(ggplot2)
-library(dplyr)
-library(stringr)
-library(lubridate)
-library(wordcloud)
-library(tm)
-library(visNetwork)
-library(tidytext)
-library(shinythemes)
-library(shinyBS)
-library(shinycssloaders)
-library(shinydashboard)
+library(shiny) #for the app
+library(ggplot2) #for the plots
+library(dplyr) #for the data manipulation
+library(stringr) #for the string manipulation
+library(lubridate) #for the date manipulation
+library(wordcloud) #for the word cloud
+library(tm) #for the text mining
+library(visNetwork) #for the network visualization
+library(tidytext) #for the text mining
+library(shinythemes) #for the theme
+library(shinyBS) #for the tooltips
+library(shinycssloaders) #for the loading spinners
+library(shinydashboard) #for the dashboard
 
 # ---- Load the Enron Dataset ----
 my_path <- "C:/Users/CM_LAPTOP/Downloads/Enron.Rdata"
 load(my_path)
+# print("Loaded Enron data!") # Debug
 
 # ---- Data Cleaning and Preparation ----
 
 # Clean and standardize sender email addresses in the message data
 message <- message %>%
-  mutate(sender_clean = tolower(trimws(sender)))
+  mutate(sender_email = tolower(trimws(sender)))
 
 # Clean and standardize employee email addresses
 employeelist <- employeelist %>%
-  mutate(Email_clean = tolower(trimws(Email_id)))
+  mutate(emp_email = tolower(trimws(Email_id)))
 
 # Get unique employee roles for filtering in the UI
 unique_roles <- sort(unique(na.omit(as.character(employeelist$status))))
 
-# Most active employees cleaning and preparation 
-
 # Prepare top senders data with proper status information
-top_senders <- message %>%
-  count(sender_clean, sort = TRUE) %>%
-  left_join(employeelist %>% 
-              select(Email_clean, status, firstName, lastName), 
-            by = c("sender_clean" = "Email_clean")) %>%
+# Count emails per sender and join with employee info
+# Create a readable label for each sender
+
+# Count emails per sender
+sender_counts <- message %>%
+  count(sender_email, sort = TRUE)
+
+# Join with employee info and create label
+# If status is available, use full name and status, otherwise just show the email
+top_senders <- sender_counts %>%
+  left_join(employeelist %>% select(emp_email, status, firstName, lastName), by = c("sender_email" = "emp_email")) %>%
   mutate(
-    label = ifelse(!is.na(status),
+    label = ifelse(!is.na(status) & !is.na(firstName) & !is.na(lastName), # If status is available, use full name and status, otherwise just show the email
                    paste0(firstName, " ", lastName, " (", status, ")"),
-                   sender_clean)
+                   sender_email)
   )
 
 # Create a data frame with monthly email counts
@@ -50,11 +55,12 @@ email_data <- data.frame(
   Count = 1
 )
 
-# Correct errors in the year data in the dataframe
+# Correct errors in the year data in the dataframe here 0001, 0002, 1979, 2020 are wrong, 
+# we are using 2001, 2002, 1997, 2002 respectively instead
 email_data <- email_data %>%
   mutate(Date = case_when(
     format(Date, "%Y") == "0001" ~ as.Date(paste0("2001", format(Date, "-%m-%d"))),
-    format(Date, "%Y") == "0002" ~ as.Date(paste0("2002", format(Date, "-%m-%d"))), 
+    format(Date, "%Y") == "0002" ~ as.Date(paste0("2002", format(Date, "-%m-%d"))),
     format(Date, "%Y") == "1979" ~ as.Date(paste0("1997", format(Date, "-%m-%d"))),
     format(Date, "%Y") == "2020" ~ as.Date(paste0("2002", format(Date, "-%m-%d"))),
     TRUE ~ Date
@@ -66,7 +72,7 @@ email_data <- email_data[email_data$Date >= as.Date("1999-01-01") & email_data$D
 # Group by Date and summarize the count
 email_data <- email_data %>%
   group_by(Date) %>%
-  summarize(Count = sum(Count))
+  summarize(Count = sum(Count), .groups = "drop")
 
 # Role analysis 
 
@@ -74,19 +80,19 @@ email_data <- email_data %>%
 
 # Nodes: Each employee as a node
 nodes <- employeelist %>%
-  mutate(id = Email_clean, 
-         label = paste(firstName, lastName),
-         group = status) %>%
+  mutate(id = emp_email, # id is the email address so we can use it to connect the nodes
+         label = paste(firstName, lastName), # label is the full name of the employee
+         group = status) %>% # group is the status of the employee
   select(id, label, group)
 
 # Edges: Email connections between employees
 edges <- recipientinfo %>%
   mutate(rvalue_clean = tolower(trimws(rvalue))) %>%
-  left_join(message %>% select(mid, sender), by = "mid") %>%
-  left_join(employeelist %>% select(Email_id, Email_clean), by = c("sender" = "Email_id")) %>%
-  mutate(from = Email_clean, to = rvalue_clean) %>%
-  filter(!is.na(from) & !is.na(to)) %>%
-  filter(from %in% nodes$id & to %in% nodes$id) %>%
+  left_join(message %>% select(mid, sender_email), by = "mid") %>% # left join the message data with the recipientinfo data because not in the same DF
+  left_join(employeelist %>% select(emp_email, Email_id), by = c("sender_email" = "emp_email")) %>% # same as above
+  mutate(from = sender_email, to = rvalue_clean) %>% # from is the sender and to is the recipient
+  filter(!is.na(from) & !is.na(to)) %>% # filter out the NAs as we have some
+  filter(from %in% nodes$id & to %in% nodes$id) %>% 
   group_by(from, to) %>%
   summarize(value = n(), .groups = "drop")
 
@@ -134,7 +140,10 @@ ui <- fluidPage(
             id = "temporal_tab",
             tabPanel("Time Series", 
                      withSpinner(div(`aria-label` = "Time Series Plot", plotOutput("timeSeriesPlot"))),
-                     withSpinner(div(`aria-label` = "Event Information", verbatimTextOutput("eventInfo")))),
+                     div(
+                       style = "margin-top: 5px; margin-bottom: 0px; padding: 2px 8px 2px 8px; background: #f8f9fa; border-radius: 6px; width: fit-content;",
+                       verbatimTextOutput("eventInfo")
+                     )),
             tabPanel("Anomaly Detection", 
                      withSpinner(div(`aria-label` = "Anomaly Detection Plot", plotOutput("anomalyPlot"))))
           )
@@ -196,8 +205,8 @@ ui <- fluidPage(
       sidebarLayout(
         sidebarPanel(
           selectInput("sender_content", "Select sender:",
-                     choices = unique(top_senders$sender_clean),
-                     selected = unique(top_senders$sender_clean)[1]),
+                     choices = unique(top_senders$sender_email),
+                     selected = unique(top_senders$sender_email)[1]),
           conditionalPanel(
             condition = "input.content_tab == 'Word Cloud'",
             sliderInput("max_words", "Maximum number of words:",
@@ -292,11 +301,26 @@ ui <- fluidPage(
           tabsetPanel(
             id = "analysis_tab",
             tabPanel("Summary Statistics", 
-                     withSpinner(div(`aria-label` = "Summary Statistics Table", tableOutput("summaryStats")))),
+                     withSpinner(
+                       div(
+                         style = "margin-top: 5px; margin-bottom: 0px; padding: 2px 8px 2px 8px; background: #f8f9fa; border-radius: 6px; width: fit-content;",
+                         tableOutput("summaryStats")
+                       )
+                     )),
             tabPanel("Hypothesis Testing", 
-                     withSpinner(div(`aria-label` = "Hypothesis Test Result", verbatimTextOutput("htestResult")))),
+                     withSpinner(
+                       div(
+                         style = "margin-top: 5px; margin-bottom: 0px; padding: 2px 8px 2px 8px; background: #f8f9fa; border-radius: 6px; width: fit-content;",
+                         verbatimTextOutput("htestResult")
+                       )
+                     )),
             tabPanel("Regression", 
-                     withSpinner(div(`aria-label` = "Regression Result", verbatimTextOutput("regressResult")))),
+                     withSpinner(
+                       div(
+                         style = "margin-top: 5px; margin-bottom: 0px; padding: 2px 8px 2px 8px; background: #f8f9fa; border-radius: 6px; width: fit-content;",
+                         verbatimTextOutput("regressResult")
+                       )
+                     )),
             tabPanel("Clustering", 
                      withSpinner(div(`aria-label` = "Clustering Plot", plotOutput("clusterPlot")))),
             tabPanel("Correlation Matrix", 
@@ -317,56 +341,67 @@ ui <- fluidPage(
 
 server <- function(input, output) {
   
-  # ---- Most Active Employees Plot ----
-  output$topSendersPlot <- renderPlot({
-    filtered_senders <- top_senders
-    
-    # Apply status filter if not "All"
-    if (input$status_filter != "All") {
-      filtered_senders <- filtered_senders %>%
-        filter(!is.na(status) & status == input$status_filter)
-    }
-    
-    # Get the top N senders after filtering
-    plot_data <- filtered_senders %>%
-      slice_max(n, n = input$n_senders) %>%
-      as.data.frame()  # Convert to regular data frame to avoid JSON warnings
-    
-    ggplot(plot_data, aes(x = reorder(label, n), y = n)) +
-      geom_col(fill = "#2c7fb8") +
-      coord_flip() +
-      labs(
-        title = paste("Top", input$n_senders, "Senders with Job Titles"),
-        x = "Sender (Job Title)",
-        y = "Number of Emails Sent"
-      ) +
-      theme_minimal(base_size = 12) +
-      theme(axis.text.y = element_text(size = 10))
-  })
+  # ---- Plot: Most Active Employees ----
+output$topSendersPlot <- renderPlot({
+  # Start with full sender list
+  filtered_senders <- top_senders
+
+  # If the user picked a specific status, narrow it down
+  if (input$status_filter != "All") {
+    filtered_senders <- filtered_senders %>%
+      filter(status == input$status_filter & !is.na(status))  # skip rows with missing status
+  }
+
+  # Grab the top N senders from the filtered list
+  plot_data <- filtered_senders %>%
+    slice_max(n, n = input$n_senders) %>%
+    as.data.frame()  # helps avoid weird jsonlite warnings in Shiny
+
+  # Basic horizontal bar plot of senders
+  ggplot(plot_data, aes(x = reorder(label, n), y = n)) +
+    geom_col(fill = "#2c7fb8") +
+    coord_flip() +
+    labs(
+      title = paste("Top", input$n_senders, "Senders with Job Titles"),
+      x = "Sender (Job Title)",
+      y = "Emails Sent"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(axis.text.y = element_text(size = 10))
+})
   
-  # ---- Temporal Analysis Plot ----
-  output$timeSeriesPlot <- renderPlot({
-    filtered_data <- email_data %>%
-      filter(Date >= input$date_range[1] & Date <= input$date_range[2])
-    
-    p <- ggplot(filtered_data, aes(x = Date, y = Count)) +
-      geom_line() +
-      labs(title = "Monthly Email Counts",
-           x = "Date",
-           y = "Number of Emails") +
-      theme_minimal() +
-      scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))
-    
-    if (input$show_events) {
-      p <- p + 
-        geom_vline(xintercept = as.Date("2001-09-01"), color = "red", linetype = "dashed") +
-        geom_vline(xintercept = as.Date("2001-10-31"), color = "red", linetype = "dashed") +
-        geom_vline(xintercept = as.Date("2001-12-02"), color = "red", linetype = "dashed")
-    }
-    
-    p
-  })
+# ---- Plot: Emails Over Time ----
+output$timeSeriesPlot <- renderPlot({
+  # Narrow data to selected date range
+  filtered_data <- email_data %>%
+    filter(Date >= input$date_range[1], Date <= input$date_range[2])
+
+  # Build base time series plot
+  p <- ggplot(filtered_data, aes(x = Date, y = Count)) +
+    geom_line() +
+    labs(
+      title = "Monthly Email Counts",
+      x = "Date",
+      y = "Number of Emails"
+    ) +
+    theme_minimal() +
+    scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+  # Optionally add key events (if checkbox is checked)
+  if (input$show_events) {
+    important_dates <- as.Date(c("2001-09-01", "2001-10-31", "2001-12-02"))
+
+    p <- p + geom_vline(
+      xintercept = important_dates,
+      color = "red",
+      linetype = "dashed"
+    )
+  }
+
+  # Return the plot
+  p
+})
   
   # Event Information
   output$eventInfo <- renderText({
@@ -399,56 +434,65 @@ server <- function(input, output) {
       theme(axis.text.x = element_text(angle = 45, hjust = 1))
   })
   
-  # ---- Role Analysis Plot ----
-  output$rolePlot <- renderPlot({
-    if (input$role_metric == "Number of Emails") {
-      role_data <- employeelist %>%
-        left_join(message %>% count(sender_clean), by = c("Email_clean" = "sender_clean")) %>%
-        group_by(status) %>%
-        summarize(avg_emails = mean(n, na.rm = TRUE)) %>%
-        ungroup() %>%
-        as.data.frame()  # Convert to regular data frame
-      
-      ggplot(role_data, aes(x = reorder(status, avg_emails), y = avg_emails)) +
-        geom_col(fill = "#2c7fb8") +
-        coord_flip() +
-        labs(title = "Average Number of Emails by Role",
-             x = "Role",
-             y = "Average Number of Emails") +
-        theme_minimal()
-    } else {
-      # Email length analysis by role
-      role_length_data <- message %>%
-        left_join(referenceinfo, by = "mid") %>%  # join to get the email content
-        left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
-        mutate(email_length = str_length(reference)) %>%  # use the correct column
-        group_by(status) %>%
-        summarize(avg_length = mean(email_length, na.rm = TRUE)) %>%
-        ungroup() %>%
-        as.data.frame()  # Convert to regular data frame
-      
-      ggplot(role_length_data, aes(x = reorder(status, avg_length), y = avg_length)) +
-        geom_col(fill = "#2c7fb8") +
-        coord_flip() +
-        labs(title = "Average Email Length by Role",
-             x = "Role",
-             y = "Average Email Length (characters)") +
-        theme_minimal()
-    }
-  })
+  # ---- Plot: Role-Based Email Analysis ----
+output$rolePlot <- renderPlot({
+  if (input$role_metric == "Number of Emails") {
+    # Count emails per sender, then calculate average per role
+    role_data <- employeelist %>%
+      left_join(
+        message %>% count(sender_email),
+        by = c("emp_email" = "sender_email")
+      ) %>%
+      group_by(status) %>%
+      summarize(avg_emails = mean(n, na.rm = TRUE)) %>%
+      ungroup() %>%
+      as.data.frame()  # just in case for Shiny render issues
+
+    ggplot(role_data, aes(x = reorder(status, avg_emails), y = avg_emails)) +
+      geom_col(fill = "#2c7fb8") +
+      coord_flip() +
+      labs(
+        title = "Avg. Emails Sent by Role",
+        x = "Role",
+        y = "Avg. Number of Emails"
+      ) +
+      theme_minimal()
+    
+  } else {
+    # Calculate avg. email length by role
+    role_length_data <- message %>%
+      left_join(referenceinfo, by = "mid") %>%  # get message content
+      left_join(employeelist, by = c("sender_email" = "emp_email")) %>%
+      mutate(email_length = str_length(reference)) %>%
+      group_by(status) %>%
+      summarize(avg_length = mean(email_length, na.rm = TRUE)) %>%
+      ungroup() %>%
+      as.data.frame()
+
+    ggplot(role_length_data, aes(x = reorder(status, avg_length), y = avg_length)) +
+      geom_col(fill = "#2c7fb8") +
+      coord_flip() +
+      labs(
+        title = "Avg. Email Length by Role",
+        x = "Role",
+        y = "Avg. Email Length (chars)"
+      ) +
+      theme_minimal()
+  }
+})
   
   # ---- Role-to-Role Heatmap ----
   output$roleHeatmap <- renderPlot({
     # Join sender and recipient roles
-    sender_roles <- employeelist %>% select(Email_clean, sender_status = status)
-    recipient_roles <- employeelist %>% select(Email_clean, recipient_status = status)
+    sender_roles <- employeelist %>% select(emp_email, sender_status = status)
+    recipient_roles <- employeelist %>% select(emp_email, recipient_status = status)
     
     # Prepare sender-recipient pairs from employee emails only
     role_pairs <- recipientinfo %>%
       mutate(rvalue_clean = tolower(trimws(rvalue))) %>%
-      left_join(message %>% select(mid, sender_clean), by = "mid") %>%
-      left_join(sender_roles, by = c("sender_clean" = "Email_clean")) %>%
-      left_join(recipient_roles, by = c("rvalue_clean" = "Email_clean")) %>%
+      left_join(message %>% select(mid, sender_email), by = "mid") %>%
+      left_join(sender_roles, by = c("sender_email" = "emp_email")) %>%
+      left_join(recipient_roles, by = c("rvalue_clean" = "emp_email")) %>%
       filter(!is.na(sender_status) & !is.na(recipient_status))
     
     heatmap_data <- role_pairs %>%
@@ -477,7 +521,7 @@ server <- function(input, output) {
   output$wordCloudPlot <- renderPlot({
     # Get messages from selected sender
     sender_messages <- message %>%
-      filter(sender_clean == input$sender_content) %>%
+      filter(sender_email == input$sender_content) %>%
       left_join(referenceinfo, by = "mid") %>%
       pull(reference) %>%
       as.character()  # Ensure character type
@@ -505,7 +549,7 @@ server <- function(input, output) {
   # ---- Content Analysis: Email Length Distribution ----
   output$emailLengthPlot <- renderPlot({
     length_data <- message %>%
-      { if (input$sender_content != "ALL") filter(., sender_clean == input$sender_content) else . } %>%
+      { if (input$sender_content != "ALL") filter(., sender_email == input$sender_content) else . } %>%
       left_join(referenceinfo, by = "mid") %>%
       mutate(email_length = str_length(reference)) %>%
       select(email_length) %>%
@@ -519,32 +563,46 @@ server <- function(input, output) {
       theme_minimal()
   })
 
-  # ---- Content Analysis: N-gram Analysis ----
-  output$ngramPlot <- renderPlot({
-    sender_messages <- message %>%
-      { if (input$sender_content != "ALL") filter(., sender_clean == input$sender_content) else . } %>%
-      left_join(referenceinfo, by = "mid") %>%
-      pull(reference) %>%
-      as.character()
-    
-    text_df <- tibble(text = sender_messages)
-    ngram_n <- input$ngram_n
-    ngram_top <- input$ngram_top
-    
-    ngrams <- text_df %>%
-      unnest_tokens(ngram, text, token = "ngrams", n = ngram_n) %>%
-      count(ngram, sort = TRUE) %>%
-      filter(!is.na(ngram)) %>%
-      slice_max(n, n = ngram_top)
-    
-    ggplot(ngrams, aes(x = reorder(ngram, n), y = n)) +
-      geom_col(fill = "#2c7fb8") +
-      coord_flip() +
-      labs(title = paste("Top", ngram_top, paste0(ngram_n, "-grams"), "in Emails"),
-           x = paste0(ngram_n, "-gram"),
-           y = "Frequency") +
-      theme_minimal()
-  })
+# ---- Plot: N-Gram Frequency ----
+output$ngramPlot <- renderPlot({
+  # Filter messages if a specific sender is selected
+  sender_messages <- message %>%
+    { 
+      if (input$sender_content != "ALL") {
+        filter(., sender_email == input$sender_content)
+      } else {
+        .
+      }
+    } %>%
+    left_join(referenceinfo, by = "mid") %>%
+    pull(reference) %>%
+    as.character()
+
+  # Put everything into a tibble
+  text_df <- tibble(text = sender_messages)
+
+  # Get settings from UI
+  ngram_n <- input$ngram_n
+  ngram_top <- input$ngram_top
+
+  # Generate top N n-grams
+  ngrams <- text_df %>%
+    unnest_tokens(ngram, text, token = "ngrams", n = ngram_n) %>%
+    count(ngram, sort = TRUE) %>%
+    filter(!is.na(ngram)) %>%
+    slice_max(n, n = ngram_top)
+
+  # Plot the result
+  ggplot(ngrams, aes(x = reorder(ngram, n), y = n)) +
+    geom_col(fill = "#2c7fb8") +
+    coord_flip() +
+    labs(
+      title = paste("Top", ngram_top, paste0(ngram_n, "-grams"), "in Emails"),
+      x = paste(ngram_n, "-gram"),
+      y = "Frequency"
+    ) +
+    theme_minimal()
+})
   
   # ---- Network Visualization ----
   output$networkPlot <- renderVisNetwork({
@@ -582,7 +640,7 @@ server <- function(input, output) {
     # Example: summary of email length by role
     message %>%
       left_join(referenceinfo, by = "mid") %>%
-      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
+      left_join(employeelist, by = c("sender_email" = "emp_email")) %>%
       mutate(email_length = str_length(reference)) %>%
       group_by(status) %>%
       summarize(
@@ -592,102 +650,144 @@ server <- function(input, output) {
       )
   })
 
-  # ---- Analysis: Hypothesis Testing ----
-  output$htestResult <- renderPrint({
-    # Example: t-test for email length between two roles
-    req(input$htest_group1, input$htest_group2)
-    dat <- message %>%
-      left_join(referenceinfo, by = "mid") %>%
-      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
-      mutate(email_length = str_length(reference)) %>%
-      filter(status %in% c(input$htest_group1, input$htest_group2))
-    group1 <- dat$email_length[dat$status == input$htest_group1]
-    group2 <- dat$email_length[dat$status == input$htest_group2]
-    if (length(group1) > 1 && length(group2) > 1) {
-      t.test(group1, group2)
-    } else {
-      "Not enough data for one or both groups."
-    }
-  })
+# ---- Hypothesis Testing: Email Length by Role ----
+output$htestResult <- renderPrint({
+  # Make sure both group inputs are provided
+  req(input$htest_group1, input$htest_group2)
+
+  # Join message text and employee info
+  dat <- message %>%
+    left_join(referenceinfo, by = "mid") %>%
+    left_join(employeelist, by = c("sender_email" = "emp_email")) %>%
+    mutate(email_length = str_length(reference)) %>%
+    filter(status %in% c(input$htest_group1, input$htest_group2))
+
+  # Pull lengths for the two groups
+  group1 <- dat$email_length[dat$status == input$htest_group1]
+  group2 <- dat$email_length[dat$status == input$htest_group2]
+
+  # Run t-test if there's enough data
+  if (length(group1) > 1 && length(group2) > 1) {
+    t.test(group1, group2)
+  } else {
+    cat("Not enough messages to compare these groups.\nTry selecting roles with more data.")
+  }
+})
 
   # ---- Analysis: Regression ----
-  output$regressResult <- renderPrint({
-    # Example: regression of email length on role
-    dat <- message %>%
-      left_join(referenceinfo, by = "mid") %>%
-      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
-      mutate(email_length = str_length(reference))
-    if (input$regress_y == "Email Length") {
-      fit <- lm(email_length ~ status, data = dat)
-      summary(fit)
-    } else {
-      # Email count by role
-      count_dat <- dat %>% group_by(status) %>% summarize(email_count = n())
-      fit <- lm(email_count ~ status, data = count_dat)
-      summary(fit)
-    }
-  })
+output$regressResult <- renderPrint({
+  # Simple regression to explore role effect on email metrics
+  dat <- message %>%
+    left_join(referenceinfo, by = "mid") %>%
+    left_join(employeelist, by = c("sender_email" = "emp_email")) %>%
+    mutate(email_length = str_length(reference))
 
-  # ---- Analysis: Clustering ----
-  output$clusterPlot <- renderPlot({
-    # Example: K-means clustering of employees by email count and avg length
-    dat <- message %>%
-      left_join(referenceinfo, by = "mid") %>%
-      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
-      mutate(email_length = str_length(reference)) %>%
-      group_by(sender_clean, status) %>%
-      summarize(
-        n_emails = n(),
-        avg_length = mean(email_length, na.rm = TRUE),
-        .groups = "drop"
-      ) %>%
-      na.omit()
-    if (nrow(dat) < input$cluster_k) return(NULL)
-    km <- kmeans(dat[, c("n_emails", "avg_length")], centers = input$cluster_k)
-    dat$cluster <- as.factor(km$cluster)
-    ggplot(dat, aes(x = n_emails, y = avg_length, color = cluster, label = status)) +
-      geom_point(size = 3) +
-      labs(title = "K-means Clustering of Employees", x = "Number of Emails", y = "Average Email Length") +
-      theme_minimal()
-  })
+  if (input$regress_y == "Email Length") {
+    # Model: email length ~ role
+    fit <- lm(email_length ~ status, data = dat)
+    summary(fit)
+  } else {
+    # Model: email count ~ role
+    count_dat <- dat %>%
+      group_by(status) %>%
+      summarize(email_count = n(), .groups = "drop")
 
-  # ---- Analysis: Correlation Matrix ----
-  output$corrPlot <- renderPlot({
-    dat <- message %>%
-      left_join(referenceinfo, by = "mid") %>%
-      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
-      mutate(email_length = str_length(reference)) %>%
-      group_by(sender_clean) %>%
-      summarize(
-        n_emails = n(),
-        avg_length = mean(email_length, na.rm = TRUE),
-        .groups = "drop"
-      )
-    corr_mat <- cor(dat[, c("n_emails", "avg_length")], use = "complete.obs")
-    corrplot::corrplot(corr_mat, method = "color", addCoef.col = "black", tl.col = "black", number.cex = 1.2)
-  })
+    fit <- lm(email_count ~ status, data = count_dat)
+    summary(fit)
+  }
+})
 
-  # ---- Analysis: Outlier Detection ----
-  output$outlierPlot <- renderPlot({
-    dat <- message %>%
-      left_join(referenceinfo, by = "mid") %>%
-      left_join(employeelist, by = c("sender_clean" = "Email_clean")) %>%
-      mutate(email_length = str_length(reference)) %>%
-      group_by(sender_clean) %>%
-      summarize(
-        n_emails = n(),
-        avg_length = mean(email_length, na.rm = TRUE),
-        .groups = "drop"
-      )
-    # Outlier detection for email count
-    outlier_thresh <- mean(dat$n_emails) + 2 * sd(dat$n_emails)
-    dat$outlier <- dat$n_emails > outlier_thresh
-    ggplot(dat, aes(x = n_emails, y = avg_length, color = outlier)) +
-      geom_point(size = 3) +
-      scale_color_manual(values = c("black", "red")) +
-      labs(title = "Outlier Detection: Email Count vs. Avg Length", x = "Number of Emails", y = "Average Email Length") +
-      theme_minimal()
-  })
+# ---- Analysis: Clustering ----
+output$clusterPlot <- renderPlot({
+  # Cluster employees based on email volume and avg length
+  dat <- message %>%
+    left_join(referenceinfo, by = "mid") %>%
+    left_join(employeelist, by = c("sender_email" = "emp_email")) %>%
+    mutate(email_length = str_length(reference)) %>%
+    group_by(sender_email, status) %>%
+    summarize(
+      n_emails = n(),
+      avg_length = mean(email_length, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    na.omit()
+
+  # Safety check — too few rows for K-means
+  if (nrow(dat) < input$cluster_k) {
+    cat("Not enough records to form", input$cluster_k, "clusters.")
+    return(NULL)
+  }
+
+  # Apply K-means
+  km <- kmeans(dat[, c("n_emails", "avg_length")], centers = input$cluster_k)
+  dat$cluster <- as.factor(km$cluster)
+
+  # Plot clusters
+  ggplot(dat, aes(x = n_emails, y = avg_length, color = cluster)) +
+    geom_point(size = 3) +
+    labs(
+      title = "K-means Clustering of Employees",
+      x = "Number of Emails",
+      y = "Avg. Email Length"
+    ) +
+    theme_minimal()
+})
+
+# ---- Analysis: Correlation Matrix ----
+output$corrPlot <- renderPlot({
+  # Compare email volume and text length per sender
+  dat <- message %>%
+    left_join(referenceinfo, by = "mid") %>%
+    left_join(employeelist, by = c("sender_email" = "emp_email")) %>%
+    mutate(email_length = str_length(reference)) %>%
+    group_by(sender_email) %>%
+    summarize(
+      n_emails = n(),
+      avg_length = mean(email_length, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  # Compute correlation
+  corr_mat <- cor(dat[, c("n_emails", "avg_length")], use = "complete.obs")
+
+  # Display
+  corrplot::corrplot(
+    corr_mat,
+    method = "color",
+    addCoef.col = "black",
+    tl.col = "black",
+    number.cex = 1.2
+  )
+})
+
+# ---- Analysis: Outlier Detection ----
+output$outlierPlot <- renderPlot({
+  # Identify employees with unusually high email counts
+  dat <- message %>%
+    left_join(referenceinfo, by = "mid") %>%
+    left_join(employeelist, by = c("sender_email" = "emp_email")) %>%
+    mutate(email_length = str_length(reference)) %>%
+    group_by(sender_email) %>%
+    summarize(
+      n_emails = n(),
+      avg_length = mean(email_length, na.rm = TRUE),
+      .groups = "drop"
+    )
+
+  # Basic outlier threshold: mean + 2*sd
+  outlier_thresh <- mean(dat$n_emails) + 2 * sd(dat$n_emails)
+  dat$outlier <- dat$n_emails > outlier_thresh
+
+  ggplot(dat, aes(x = n_emails, y = avg_length, color = outlier)) +
+    geom_point(size = 3) +
+    scale_color_manual(values = c("black", "red")) +
+    labs(
+      title = "Outlier Detection: Emails vs. Length",
+      x = "Total Emails Sent",
+      y = "Avg. Email Length"
+    ) +
+    theme_minimal()
+})
 }
 
 # Run the app
