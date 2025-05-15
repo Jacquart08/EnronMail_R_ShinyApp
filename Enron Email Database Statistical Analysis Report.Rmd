@@ -10,22 +10,22 @@ output:
     number_section: true
 ---
 
-# Introduction
+# __Introduction__
 
-  In this study case we sill analyze a major scandal of fraud and financial manipulation that occured in 2001 the __Enron Scandal__. Enron was one of the major (if not the biggest) energy company from the late 90's. During their fall, they took with them one of the big 5 (now down to four): Andersen. The Enron affair gave rise to an unprecedented number of official investigations, legal actions and media reactions around the world. The disaster had serious consequences for more than 26,000 employees and some 45,000 investors.
+  In this study case we sill analyze a major scandal of fraud and financial manipulation that occured in 2001 the __Enron Scandal__. __Enron__ was one of the major (if not the biggest) energy company from the late 90's. During their fall, they took with them one of the big 5 (now down to four): __Andersen__. The Enron affair gave rise to an unprecedented number of official investigations, legal actions and media reactions around the world. The disaster had serious consequences for more than 26,000 employees and some 45,000 investors.
 
-  In order to analyze this case, we will focus on the email data set, which was obtained by the Federal Energy Regulatory Commission during its investigation of Enron's collapse. The original version contains around 500,000 records, but the data set provided in this analysis is a pre-processed one containing 252759 usable entries.
+  In order to analyze this case, we will focus on the email data set, which was obtained by the __Federal Energy Regulatory Commission__ during its investigation of Enron's collapse. The original version contains around 500,000 records, but the data set provided in this analysis is a pre-processed one containing 252759 usable entries.
 
-  We will do this analysis in a R Shiny application, that will allow us to retrieve quick graphs and statistic in order for us to interpret data. Even if the data set is pre-processed, we will still need to handle some kinds of errors in order for the analysis to be consistent. The analysis will be structured as it follow :   
-1. We will first make a temporal analysis to see the behaviors of the email exchanges through the scandal.  
-2. We will then try to see if the status of an employee in the company affect the exchange he will make  through this vector of communication.  
-3. We will try to analyze the content of the exchange, are they longer regarding different hypothesis, is the content different regarding those too ?  
-4. We will establish a network of relations between the employee to see if a pattern emerges.  
-5. We will finish with some statistics on the data set and try to establish a regression model to see if we could predict some features of the data set.  
+  We will do this analysis in a *R Shiny* application, that will allow us to retrieve quick graphs and statistic in order for us to interpret data. Even if the data set is pre-processed, we will still need to handle some kinds of errors in order for the analysis to be consistent. The analysis will be structured as it follow :   
+1. We will first make a *temporal analysis* to see the behaviors of the email exchanges through the scandal.  
+2. We will then try to see if the *status of an employee* in the company affect the exchange he will make  through this vector of communication.  
+3. We will try to *analyze the content* of the exchange, are they longer regarding different hypothesis, is the content different regarding those too ?  
+4. We will establish a *network of relations* between the employee to see if a pattern emerges.  
+5. We will finish with some statistics on the data set and try to establish a *regression model* to see if we could predict some features of the data set.  
 
-## Loading of the dataset
+## __Loading of the dataset__
 
-  The pre-processed data set has been provided in the file "Enron.Rdata". We will first load it in Rstudio in order to retrieve it and work on it.
+  The pre-processed data set has been provided in the file *"Enron.Rdata"*. We will first load it in Rstudio in order to retrieve it and work on it.
 
 ```{R datacleaning-DataAndLibraryLoading}
 #Loading of the database. Please replace my_path value with the path of your file. Use a local emplacement to store it, One Drive users may occur errors. Otherwise just access and clone the repo : https://github.com/Jacquart08/EnronMail_R_ShinyApp
@@ -34,22 +34,21 @@ my_path <- "C:/Users/CM_LAPTOP/Downloads/Enron.Rdata"
 load(my_path)
 
 # Load required packages
-library(shiny) #for the app
-library(ggplot2) #for the plots
+library(ggplot2) #plotting tool
 library(dplyr) #for the data manipulation
-library(stringr) #for the string manipulation
-library(lubridate) #for the date manipulation
+library(stringr) #string manipulation in the content and emails
+library(lubridate) #help dealing with dates
 library(wordcloud) #for the word cloud
 library(tm) #for the text mining
 library(visNetwork) #for the network visualization
-library(tidytext) #for the text mining
-library(tibble)
-library(knitr)
+library(tidytext) # also for the text mining
+library(tibble) #easy row by row reader
+library(knitr) #dynamic report edition
 ```
 
-  In case you are using the full data set provided on : https://www.cs.cmu.edu/~enron/ , you will then need to extract the .tar.gz with the untar(my_path, exdir="Your/desired/path) function. See [R documentation](https://www.rdocumentation.org/packages/utils/versions/3.6.2/topics/untar) for more informations.
+  In case you are using the full data set provided on : https://www.cs.cmu.edu/~enron/ , you will then need to extract the *.tar.gz* with the `untar(my_path, exdir="Your/desired/path)` function. See [R documentation](https://www.rdocumentation.org/packages/utils/versions/3.6.2/topics/untar) for more informations.
 
-# First step in the Dataset
+# __First step in the Dataset__
 
   Let's gather some information about the different data frames we loaded previously. We are writing very simple code in order to retrieve all the columns of the data frames and their data types. 
 
@@ -59,7 +58,7 @@ str(message)
 str(recipientinfo)
 str(referenceinfo)
 ```
-  We do now know that we are against a big data base, related to the emails sent in the company Enron before a major incident. We do have at our disposal an employee list with the different information about the staff, the messages that those users sent via the email vector of communication. The two other tables are information about emails. We do have in the recipientinfo some Ids and the email address of the recipient and in the referenceinfo the link between the recipient and the information contained in the email (the content and the date particularly).
+  We do now know that we are against a big data base, related to the emails sent in the company __Enron__ before a major incident. We do have at our disposal an employee list with the different information about the staff, the messages that those users sent via the email vector of communication. The two other tables are information about emails. We do have in the *recipientinfo* some Ids and the email address of the recipient and in the *referenceinfo* the link between the recipient and the information contained in the email (the content and the date particularly).
 
 Let's write the data dictionary about this data set:  
 
@@ -104,7 +103,7 @@ With the following we will establish a functional dependency matrix regarding th
 
   Later we are going to visualize some simple one to one relations that appear in the database, let's try to focus first on the employee list info.
 
-## Employeelist univariate analysis
+## __Employeelist univariate analysis__
 
   Let's try to identify more precisely how the data set is composed in term of employees.
 
@@ -113,7 +112,7 @@ table(employeelist$status)
 ```
   So it seems that we do have a proper distribution to make clear and precise analysis. The N/A values are not usable as we can't have those information online. We will keep them as they can be useful in a future network analysis so we will not get rid of them during the data cleaning.
 
-## Preparatory data cleaning
+## __Preparatory data cleaning__
 
 Lets first create an email_data table that will contain the count of emails monthly.
 
@@ -131,7 +130,7 @@ email_data <- email_data %>%
 
 head(email_data)
 ```
-  We do notice that several of dates are not usable due to some mistakes. We identify that the first one is that 0001 and 0002 are induced instead of 2001 and 2002. We then see a 1979 instead of 1997. For the year 2020, it seems indeed to be an email from 2002. The messages from 2044 and 2043 don't have records by checking by message ID (mid). As we don't have the content we will not convert them we will simply remove them.
+  We do notice that several of dates are not usable due to some mistakes. We identify that the first one is that *0001* and *0002* are induced instead of *2001* and *2002*. We then see a *1979* instead of *1997*. For the year *2020*, it seems indeed to be an email from *2002*. The messages from *2044* and *2043* don't have records by checking by message ID (mid). As we don't have the content we will not convert them we will simply remove them.
 
 ```{R datacleaning-EmailDates}
 # Correct errors in the year data in the dataframe
@@ -158,7 +157,7 @@ summary(email_data)
 
 Now that the data is clean lets visualize it with some plots.
 
-## Temporal analysis of the messages
+## __Temporal analysis of the messages__
 
 ```{R fig-MonthlyEmailCount, fig.cap="Monthly Email Count"}
 # Create the time series plot
@@ -171,13 +170,13 @@ ggplot(email_data, aes(x = Date, y = Count)) +
   scale_x_date(date_breaks = "3 months", date_labels = "%b %Y") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
-  We do notice that in Figure \@ref(fig:fig-MonthlyEmailCount) the the number of email exchanges followed an exponential growth trend until October 2001, before rapidly collapsing until April 2002. If we are relating those data to the actual context of the company. The  In fact in August 2001, the CEO if the company declares that "The company is probably the strongest and best shape that it has ever been in" although it wasn't true and the Enron Broadband Services was reporting losses. The artificial value of the company was due to a falsified financial package.
+  We do notice that in Figure \@ref(fig:fig-MonthlyEmailCount) the the number of email exchanges followed an exponential growth trend until October 2001, before rapidly collapsing until April 2002. If we are relating those data to the actual context of the company. The  In fact in August 2001, the CEO if the company declares that *"The company is probably the strongest and best shape that it has ever been in"* although it wasn't true and the Enron Broadband Services was reporting losses. The artificial value of the company was due to a falsified financial package.
 
-  Enron's share price, after rising sharply until 2000, fell sharply in 2000-2001. While these loans served as collateral for numerous financial arrangements between the company and its banks, the latter demanded repayment of these camouflaged loans, which resurfaced on the company's balance sheet.
+  __Enron__'s share price, after rising sharply until 2000, fell sharply in 2000-2001. While these loans served as collateral for numerous financial arrangements between the company and its banks, the latter demanded repayment of these camouflaged loans, which resurfaced on the company's balance sheet.
 
-  In October 2001, Enron CEO is asking for the Secretary of Commerce to use his influence on the quotation agency Moody's and later this month Security and Exchange's Commission raise a case. Quickly in december 2001 the company declare its bankruptcy.
+  In October 2001, __Enron__ CEO is asking for the Secretary of Commerce to use his influence on the quotation agency __Moody__'s and later this month __Security and Exchange's Commission__ raise a case. Quickly in December 2001 the company declare its bankruptcy.
 
-## Role analysis regarding the echanges
+## __Role analysis regarding the echanges__
 
   In this part we will focus on the message data frame. We will try to identify who is the most active email sender of this data set.
 
@@ -210,7 +209,7 @@ top_senders %>%
   theme(axis.text.y = element_text(size = 9))
 ```
 
-  As we notice in Figure \@ref(fig:fig-MostActiveEmployee), and by reading the news the employee who sent the most emails was J. Dasovich. And in general we can notice that employees sent more emails than other positions in the company.However, if you pay more attention to the average number of emails, then managers are taking the lead. As the Enron company was well known for it's unique management methodology, influenced by the Ivy league university mentality, the results aren't that surprising. we can also notice it in the average length of the email sent. This feeling is comforted by the role-to-role heat map (\@ref(fig:fig-RoletoRoleHeatmap)) of the communication inside Enron.
+  As we notice in Figure \@ref(fig:fig-MostActiveEmployee), the employee who sent the most emails was *J. Dasovich*. And in general we can notice that employees sent more emails than other positions in the company.However, if you pay more attention to the average number of emails, then managers are taking the lead. As the __Enron__ company was well known for it's unique management methodology, influenced by the Ivy league university mentality, the results aren't that surprising. we can also notice it in the average length of the email sent. This feeling is comforted by the role-to-role heat map (\@ref(fig:fig-RoletoRoleHeatmap)) of the communication inside __Enron__.
 
 ```{R fig-RoletoRoleHeatmap, fig.cap="Role to Role Heatmap regarding the email exchanges"}
 # Clean and standardize sender email addresses in the message data
@@ -263,22 +262,21 @@ ggplot(heatmap_df, aes(x = `Recipient Role`, y = `Sender Role`, fill = Count)) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
-# In depth analysis
+# __In depth analysis__
 
-  In this section we will go deeper into the data set. We will analyse the content of the email as well as the networking appearing in the exchanges. We will then relate it the some statistical analysis in order later to try to introduce some simple regression models.
+  In this section we will go deeper into the data set. We will *analyse the content* of the email as well as the *networking* appearing in the exchanges. We will then relate it the some *statistical analysis* in order later to try to introduce some *simple regression models*.
 
-## Message content analysis
+## __Message content analysis__
 
-  Due to the actual construction of the dataframe referenceinfo, where the content of the emails is stored, we do have inside lot of useless informations. In fact it record all the email with the informations about the sender, the recipent, the subject, ... but all of those informations are already stored into the recipientinfo dataframe. I tried in the app to perform a regex to remove the headers. Due to the number of emails and the ressources I have at my disposal I can't afford to make it run. The function was `referenceinfo <- referenceinfo %>%
-  mutate(message_body = str_replace(reference, ".*?\r?\n\r?\n", ""))` but message_body take too long to complete. I will stick with reference, knowing that the analysis will be altered.
+  Due to the actual construction of the data frame *referenceinfo*, where the content of the emails is stored, we do have inside lot of useless information. In fact it record all the email with the information about the sender, the recipient, the subject, ... but all of those information are already stored into the *recipientinfo* data frame. I've tried in the app to perform a regex to remove the headers. Due to the number of emails and the ressources I have at my disposal I can't afford to make it run. The function was `referenceinfo <- referenceinfo %>% mutate(message_body = str_replace(reference, ".*?\r?\n\r?\n", ""))` but *message_body* took too long to complete. I will stick with **reference*, knowing that the analysis will be altered.
   
-  In the email lenght distribution, we do notice that most of the emails are short (even shorter taking into account that the headers of the emails are in the content). 
+  In the email length distribution, we do notice that most of the emails are short (even shorter taking into account that the headers of the emails are in the content).
   
-  The word cloud isn't really relevant ad most of th redundant words are the one from the header.
+  The word cloud isn't really relevant ad most of th redundant words are the one from the header. Although we do see appearing the name of J. Dasovich appearing a lot. From what we know from research about this particular individual in the company he didn't had a major role in the investigations, but it appear that he took a key position in term of internal exchanges.
   
-  The N-gram plot is still relevant. In fact, if we put aside the hearders redundancy in all the different employees, we still notice that some contacts are coming in the n-2, meaning that a network graph will be a good idea. 
+  Despite the data is altered by the email content headers, the N-gram plot is still relevant. In fact, if we put aside the headers redundancy in all the different employees, we still notice that some contacts are coming in the n-2, meaning that a network graph will be a good idea. 
   
-  In Figure \@ref(fig:fig-Top5gram) we do see that we have a huge redundandcy od privacy related patterns. Indeed the words "intendent recipient" associated sometimes with negations implicate that such expressions are not only frequent but also formulaic. They follow a legal or corporate template aiming to disclaim responsibility or assert confidentiality.
+  In Figure \@ref(fig:fig-Top5gram) we do see that we have a huge redundancy od privacy related patterns. Indeed the words "intended recipient" associated sometimes with negations implicate that such expressions are not only frequent but also formulaic. They follow a legal or corporate template aiming to disclaim responsibility or assert confidentiality.
 
 ```{R fig-Top5gram, fig.cap="Top 15 5-gram redundancy for all users"}
 # Join to get messages with reference text
@@ -301,7 +299,7 @@ ngrams <- text_df %>%
   filter(!is.na(ngram)) %>%
   slice_max(n, n = ngram_top)
 
-# Plot the result
+# Plot the result (can be long to render due to the actual computation)
 ggplot(ngrams, aes(x = reorder(ngram, n), y = n)) +
   geom_col(fill = "#2c7fb8") +
   coord_flip() +
@@ -313,9 +311,9 @@ ggplot(ngrams, aes(x = reorder(ngram, n), y = n)) +
   theme_minimal()
 ```
 
-## Network visualization of the exchanges
+## __Network visualization of the exchanges__
 
-  As seen in the N-gram plot (more relevant in the app as we can explore the data set with customs inputs), some employees have in their 2-gram, some full names are appearing. This induce some stronger connections between some employees. In Figure \@ref(fig:fig-NetworkVisualization) we do see that no real pattern shows up 
+  As seen in the *N-gram plot* (more relevant in the app as we can explore the data set with customs inputs), some employees have in their 2-gram, some full names are appearing. This induce some stronger connections between some employees. In Figure \@ref(fig:fig-NetworkVisualization) we do see that no real pattern shows up regarding the network bu it is still interesting to notice the exchanges especially if we focus on the princial fuctions of the company (*eg. CEO or Director*)
 
 ```{R fig-NetworkVisualization, fig.cap="Network visualization of the exhanges"}
 # Nodes: Each employee as a node
@@ -358,3 +356,73 @@ visNetwork(nodes, edges_sample) %>%
   visGroups(groupname = "Employee", color = "green") %>%
   visLegend()
 ```
+
+  If looking at some individuals in the network, we do see that Jeff Dasovich, for instance, had a clear link to the CEO Jeffrey skilling but also with the different vice president, director or even employees.
+  
+## __Hypothesis testing__
+
+  By playing with the t-test render on the Shiny App, we do notice that there is a lot of variation of the value of t regarding the different status of an employee. So there is a big difference of average length of the emails regarding the role. It may suggest that the actual average length of an email can be estimated doing some regression or even further if introduction Machine Learning algorithm.
+  
+## __Linear regression on variables__
+
+  By doing a simple linear regression on the variable email length, regarding the status of an employee, we do notice that the employees are sending emails approximately 707 characters longer than the other employees as shown on Figure \@ref(fig:fig-LinearRegression). The in-house Lawyer, manager and vice president are in the same case. But this model is not really useful in this case because R^2 is at 0.0042 meaning that less than 0.5% of the variance in the email length is explained, so the status is not that relevant for the email length. 
+  In conclusion the status has a good statistical impact but in the reality of the company this was not the case.
+  
+```{R fig-LinearRegression, fig.cap="Linear regression on email length depending on the status"}
+#Data cleaning, ensuring one more time that they are consistent
+#I have way less value type error in R than in Pyhton so may be overkill
+dat <- message %>%
+  left_join(referenceinfo, by = "mid") %>%
+  left_join(employeelist, by = c("sender_email" = "emp_email")) %>%
+  mutate(email_length = str_length(reference),
+         status = as.factor(status))
+
+# Linear regression model
+fit <- lm(email_length ~ status, data = dat)
+
+# model summary
+summary(fit)
+
+# Diagnostic plot
+par(mfrow = c(2, 2))
+plot(fit)
+```
+## __Clustering and outlier detection__
+
+  The overall clustering shows us that we do have a natural grouping in the communication behavior and the outlier detection show some extreme value (Figure \@ref(fig:fig-K3clustering)) meaning that this is very representative of what happened to the company during the years where we based our study for the analysis.
+  
+```{R fig-K3clustering, fig.cap="K means clustering of the employees"}
+# Define number of clusters
+cluster_k <- 3  # Change this value as needed
+
+# Join and summarize data
+dat <- message %>%
+  left_join(referenceinfo, by = "mid") %>%
+  left_join(employeelist, by = c("sender_email" = "emp_email")) %>%
+  mutate(email_length = str_length(reference)) %>%
+  group_by(sender_email, status) %>%
+  summarize(
+    n_emails = n(),
+    avg_length = mean(email_length, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  na.omit()
+
+  # Apply k-means
+km <- kmeans(dat[, c("n_emails", "avg_length")], centers = cluster_k)
+
+# Assign cluster labels
+dat$cluster <- as.factor(km$cluster)
+
+  # Plot clusters
+ggplot(dat, aes(x = n_emails, y = avg_length, color = cluster)) +
+  geom_point(size = 3) +
+  labs(
+    title = "K-means Clustering of Employees",
+    x = "Number of Emails",
+    y = "Average Email Length"
+  ) +
+  theme_minimal()
+```
+
+# __Conclusion__

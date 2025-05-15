@@ -2,8 +2,8 @@
 library(shiny) #for the app
 library(ggplot2) #for the plots
 library(dplyr) #for the data manipulation
-library(stringr) #for the string manipulation
-library(lubridate) #for the date manipulation
+library(stringr) #used the string manipulation
+library(lubridate) #easier date manipulation
 library(wordcloud) #for the word cloud
 library(tm) #for the text mining
 library(visNetwork) #for the network visualization
@@ -16,7 +16,6 @@ library(shinydashboard) #for the dashboard
 # ---- Load the Enron Dataset ----
 my_path <- "C:/Users/CM_LAPTOP/Downloads/Enron.Rdata"
 load(my_path)
-# print("Loaded Enron data!") # Debug
 
 # ---- Data Cleaning and Preparation ----
 
@@ -33,7 +32,6 @@ unique_roles <- sort(unique(na.omit(as.character(employeelist$status))))
 
 # Prepare top senders data with proper status information
 # Count emails per sender and join with employee info
-# Create a readable label for each sender
 
 # Count emails per sender
 sender_counts <- message %>%
@@ -46,7 +44,7 @@ top_senders <- sender_counts %>%
   mutate(
     label = ifelse(!is.na(status) & !is.na(firstName) & !is.na(lastName), # If status is available, use full name and status, otherwise just show the email
                    paste0(firstName, " ", lastName, " (", status, ")"),
-                   sender_email)
+                   sender_email)# Create a readable label for each sender
   )
 
 # Create a data frame with monthly email counts
@@ -55,7 +53,7 @@ email_data <- data.frame(
   Count = 1
 )
 
-# Correct errors in the year data in the dataframe here 0001, 0002, 1979, 2020 are wrong, 
+# Correct errors in the year data in the data frame here 0001, 0002, 1979, 2020 are wrong, 
 # we are using 2001, 2002, 1997, 2002 respectively instead
 email_data <- email_data %>%
   mutate(Date = case_when(
