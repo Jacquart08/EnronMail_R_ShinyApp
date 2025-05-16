@@ -30,7 +30,7 @@ cd EnronMail_R_ShinyApp
 
 ### 2. Download the Data
 
-- Download the pre-processed Enron dataset (`Enron.Rdata`) from the [project repository](https://github.com/Jacquart08/EnronMail_R_ShinyApp) or use your own.
+- Download the pre-processed Enron dataset (`Enron.tar.gz`) from the [Enron Email Dataset](https://www.cs.cmu.edu/~enron/) and update the code in order to transform it into Rdata.
 - Place the file in a local directory (avoid cloud sync folders like OneDrive for best results).
 - Update the `my_path` variable in `app.R` and in `Enron Email Database tatistical Analysis Report` if your file is in a different location.
 
