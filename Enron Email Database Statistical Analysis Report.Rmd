@@ -105,7 +105,7 @@ With the following we will establish a functional dependency matrix regarding th
 
 ## __Employeelist univariate analysis__
 
-  Let's try to identify more precisely how the data set is composed in term of employees.
+  Let's try to identify more precisely how the data set is composed in term of employees. This will be performed by the basic count formula $Count(s)= \sum^N _{i=1}1(status_i = s) \ | \ Knowing \ that \ s =each \ individual \ status$
 
 ```{R}
 table(employeelist$status)
@@ -159,6 +159,8 @@ Now that the data is clean lets visualize it with some plots.
 
 ## __Temporal analysis of the messages__
 
+  We will here perform a simple time series aggregation in order to count how many emails were send each month. For each month m we will compute $Count(m)=\sum^N_{i=!}1(month(date_i)=m)$
+
 ```{R fig-MonthlyEmailCount, fig.cap="Monthly Email Count"}
 # Create the time series plot
 ggplot(email_data, aes(x = Date, y = Count)) +
@@ -178,7 +180,7 @@ ggplot(email_data, aes(x = Date, y = Count)) +
 
 ## __Role analysis regarding the echanges__
 
-  In this part we will focus on the message data frame. We will try to identify who is the most active email sender of this data set.
+  In this part we will focus on the message data frame. We will try to identify who is the most active email sender of this data set. Here the count il also a basic count formula for each sender s $EmailSent(s)=\sum^N_{i=1}(sender_i=s)$
 
 ```{R fig-MostActiveEmployee, fig.cap="The 20 employees who sent the most emails and their status"}
 # This part count the number of emails a sender has
@@ -210,6 +212,7 @@ top_senders %>%
 ```
 
   As we notice in Figure \@ref(fig:fig-MostActiveEmployee), the employee who sent the most emails was *J. Dasovich*. And in general we can notice that employees sent more emails than other positions in the company.However, if you pay more attention to the average number of emails, then managers are taking the lead. As the __Enron__ company was well known for it's unique management methodology, influenced by the Ivy league university mentality, the results aren't that surprising. we can also notice it in the average length of the email sent. This feeling is comforted by the role-to-role heat map (\@ref(fig:fig-RoletoRoleHeatmap)) of the communication inside __Enron__.
+  The role to role heat map will then be constructed with $r_s$ each sender role and $r_r$ the recipient role : $Count(r_s,r_r)=\sum^N_{i=1}(senderstatus_i = r_s \varLambda \ recipientstatus_i=r_r )$
 
 ```{R fig-RoletoRoleHeatmap, fig.cap="Role to Role Heatmap regarding the email exchanges"}
 # Clean and standardize sender email addresses in the message data
@@ -365,7 +368,8 @@ visNetwork(nodes, edges_sample) %>%
   
 ## __Linear regression on variables__
 
-  By doing a simple linear regression on the variable email length, regarding the status of an employee, we do notice that the employees are sending emails approximately 707 characters longer than the other employees as shown on Figure \@ref(fig:fig-LinearRegression). The in-house Lawyer, manager and vice president are in the same case. But this model is not really useful in this case because R^2 is at 0.0042 meaning that less than 0.5% of the variance in the email length is explained, so the status is not that relevant for the email length. 
+  The simple linear regression will be calculated following the formula : $y_i= \beta_0 + \sum^{k-1}_{j=1} \beta_j . D_{ij}+\varepsilon_i$
+  By doing so on the variable email length, regarding the status of an employee, we do notice that the employees are sending emails approximately 707 characters longer than the other employees as shown on Figure \@ref(fig:fig-LinearRegression). The in-house Lawyer, manager and vice president are in the same case. But this model is not really useful in this case because R^2 is at 0.0042 meaning that less than 0.5% of the variance in the email length is explained, so the status is not that relevant for the email length. 
   In conclusion the status has a good statistical impact but in the reality of the company this was not the case.
   
 ```{R fig-LinearRegression, fig.cap="Linear regression on email length depending on the status"}
@@ -426,3 +430,6 @@ ggplot(dat, aes(x = n_emails, y = avg_length, color = cluster)) +
 ```
 
 # __Conclusion__
+
+  To conclude this study case, we do notice that the volume of exchanges correspond to what happened to the company. All those features helped us understand how the the email behavior of the employees of the company depend on his role.
+  This tragedy in term of business raised a lot of new regulation on the market and becam a symbol of the excesses of the American capitalism in the 1900's.
