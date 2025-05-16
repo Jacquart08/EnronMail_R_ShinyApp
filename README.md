@@ -69,7 +69,7 @@ Or simply open `app.R` in RStudio and click "Run App".
 ## License
 
 This project is for educational and research purposes.  
-See [LICENSE](LICENSE) for details (add a license file if you wish).
+See [LICENSE](https://github.com/Jacquart08/EnronMail_R_ShinyApp/blob/main/LICENCE) for details.
 
 ---
 
