@@ -393,7 +393,7 @@ plot(fit)
 ```
 ## __Clustering and outlier detection__
 
-  The overall clustering shows us that we do have a natural grouping in the communication behavior and the outlier detection show some extreme value (Figure \@ref(fig:fig-K3clustering)) meaning that this is very representative of what happened to the company during the years where we based our study for the analysis.
+  The overall clustering shows us that we do have a natural grouping in the communication behavior and the outlier detection show some extreme value (Figure \@ref(fig:fig-K3clustering)) meaning that this is very representative of what happened to the company during the years where we based our study for the analysis. We did group here the employees into 3 clusters, the first one with high number of emails and varied average length, the second with moderate number of emails and moderate average length and the last with low number of emails and short to medium average length. Each one represent a pattern of communication behavior and based on the previous data we explained we can assume the distribution of the status into these 3 clusters. We could also suppose that those clusters are appearing due to the anomaly regarding the number of email sent.
   
 ```{R fig-K3clustering, fig.cap="K means clustering of the employees"}
 # Define number of clusters
@@ -429,7 +429,28 @@ ggplot(dat, aes(x = n_emails, y = avg_length, color = cluster)) +
   theme_minimal()
 ```
 
+## __Clustering validity: Elbow Method__
+
+To assess the validity of the clustering and determine the optimal number of clusters, we use the elbow method. This involves plotting the total within-cluster sum of squares (WSS) for different values of k and identifying the point where the rate of decrease sharply slows (the "elbow").
+
+```{R fig-ElbowMethod, fig.cap="Elbow Method for Optimal k"}
+# Compute WSS for k = 1 to 10
+wss <- sapply(1:10, function(k){
+  kmeans(dat[, c("n_emails", "avg_length")], centers = k, nstart = 10)$tot.withinss
+})
+
+# Plot the elbow
+plot(1:10, wss, type = "b", pch = 19, frame = FALSE,
+     xlab = "Number of clusters K",
+     ylab = "Total within-clusters sum of squares",
+     main = "Elbow Method for Optimal k")
+```
+
+The elbow method plot (Figure \@ref(fig:fig-ElbowMethod)) shows the total within-cluster sum of squares for different values of k. The optimal number of clusters is typically at the "elbow" point, where adding more clusters does not significantly reduce the WSS. In our case the curve is smooth and no clear elbow appears, it may indicate that the data does not have a strong cluster structure.  
+
 # __Conclusion__
 
-  To conclude this study case, we do notice that the volume of exchanges correspond to what happened to the company. All those features helped us understand how the the email behavior of the employees of the company depend on his role.
-  This tragedy in term of business raised a lot of new regulation on the market and becam a symbol of the excesses of the American capitalism in the 1900's.
+  To conclude this study case, we do notice that the volume of exchanges correspond to what happened to the company. All those features helped us understand how the the email behavior of the employees of the company depend on his role.  
+  The temporal analysis revealed that a sharp increase in communication leading to the company collapse, followed by a rapid decline. The role base analysis showed that while employees where sending the more emails, higher tier in the hierarchy tended to sent longer and on average still more than the employees.   
+  While some patterns emerge, such as increased communications at a crucial point, many aspects of the data are still complex and not captured by simple model or clustering. If more resources were available to me, and if the R constraint wasn't the major point of this notebook, I would complement this analysis in python with some more complex analysis model like the XgBoost, performing very well with categorical and string data. By pointing the string data, I would also attribute a part of the resources to clean more in depth the content of the emails (that was too long to perform in R with my available resources ~2hours), in order to apply those models regarding the actual content of the emails.  
+  This tragedy in term of business raised a lot of new regulation on the market and beam a symbol of the excesses of the American capitalism in the 1900's. And this highlight the fact that we really need to combine quantitative analysis with contextual understanding when we do interpret organizational data.
